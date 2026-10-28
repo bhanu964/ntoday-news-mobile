@@ -1,69 +1,83 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+export type FeedFilterType = 'latest' | 'unread' | 'feedback';
+
 interface TopHeaderProps {
-  onLanguageToggle?: () => void;
-  onFilterPress?: () => void;
-  onBookmarksPress?: () => void;
+  activeFilter: FeedFilterType;
+  unreadCount: number;
+  isTelugu: boolean;
+  onFilterChange: (filter: FeedFilterType) => void;
+  onLanguageToggle: () => void;
+  onTunePress: () => void;
+  onBookmarksPress: () => void;
 }
 
-export function TopHeader({ onLanguageToggle, onFilterPress, onBookmarksPress }: TopHeaderProps) {
+export function TopHeader({
+  activeFilter,
+  unreadCount,
+  isTelugu,
+  onFilterChange,
+  onLanguageToggle,
+  onTunePress,
+  onBookmarksPress,
+}: TopHeaderProps) {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<'latest' | 'unread' | 'feedback'>('latest');
-  const [isTelugu, setIsTelugu] = useState(true);
 
   return (
     <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 8) }]}>
-      {/* Language Switcher Pill */}
+      {/* 1. Language Switcher Pill */}
       <TouchableOpacity
         style={styles.langPill}
         activeOpacity={0.7}
-        onPress={() => {
-          setIsTelugu(!isTelugu);
-          onLanguageToggle?.();
-        }}>
+        onPress={onLanguageToggle}>
         <View style={styles.langBadge}>
           <Text style={styles.langBadgeText}>{isTelugu ? 'తె' : 'En'}</Text>
         </View>
         <Text style={styles.langSecondaryText}>{isTelugu ? 'A' : 'తె'}</Text>
       </TouchableOpacity>
 
-      {/* Segmented Filter Pills */}
+      {/* 2. Segmented Filter Pills */}
       <View style={styles.segmentedContainer}>
+        {/* Latest */}
         <TouchableOpacity
-          style={[styles.segmentPill, activeTab === 'latest' && styles.segmentPillActive]}
-          onPress={() => setActiveTab('latest')}>
-          <Text style={[styles.segmentText, activeTab === 'latest' && styles.segmentTextActive]}>
+          style={[styles.segmentPill, activeFilter === 'latest' && styles.segmentPillActive]}
+          onPress={() => onFilterChange('latest')}
+          activeOpacity={0.8}>
+          <Text style={[styles.segmentText, activeFilter === 'latest' && styles.segmentTextActive]}>
             Latest
           </Text>
         </TouchableOpacity>
 
+        {/* Unread with Badge */}
         <TouchableOpacity
-          style={[styles.segmentPill, activeTab === 'unread' && styles.segmentPillActive]}
-          onPress={() => setActiveTab('unread')}>
-          <Text style={[styles.segmentText, activeTab === 'unread' && styles.segmentTextActive]}>
+          style={[styles.segmentPill, activeFilter === 'unread' && styles.segmentPillActive]}
+          onPress={() => onFilterChange('unread')}
+          activeOpacity={0.8}>
+          <Text style={[styles.segmentText, activeFilter === 'unread' && styles.segmentTextActive]}>
             Unread
           </Text>
-          <View style={styles.badgeRed}>
-            <Text style={styles.badgeRedText}>99+</Text>
-          </View>
+          {unreadCount > 0 && (
+            <View style={styles.badgeRed}>
+              <Text style={styles.badgeRedText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
 
+        {/* Feedback */}
         <TouchableOpacity
-          style={[styles.segmentPill, activeTab === 'feedback' && styles.segmentPillActive]}
-          onPress={() => {
-            setActiveTab('feedback');
-            Alert.alert('Feedback', 'Thank you for reading NTODAY NEWS! Feedback submitted.');
-          }}>
-          <Text style={[styles.segmentText, activeTab === 'feedback' && styles.segmentTextActive]}>
+          style={[styles.segmentPill, activeFilter === 'feedback' && styles.segmentPillActive]}
+          onPress={() => onFilterChange('feedback')}
+          activeOpacity={0.8}>
+          <Text style={[styles.segmentText, activeFilter === 'feedback' && styles.segmentTextActive]}>
             Feedback
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Action Icons */}
+      {/* 3. Action Icons */}
       <View style={styles.rightIconsContainer}>
         <TouchableOpacity
           style={styles.iconButton}
@@ -74,7 +88,7 @@ export function TopHeader({ onLanguageToggle, onFilterPress, onBookmarksPress }:
 
         <TouchableOpacity
           style={styles.iconButton}
-          onPress={onFilterPress}
+          onPress={onTunePress}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <MaterialCommunityIcons name="tune" size={21} color="#FFFFFF" />
         </TouchableOpacity>

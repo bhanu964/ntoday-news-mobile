@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   TouchableOpacity,
   Share,
   Linking,
@@ -11,20 +10,33 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { NewsArticle } from '@/types/news';
+import { NewsArticle, NewsComment } from '@/types/news';
+import { MediaViewer } from './MediaViewer';
+import { CommentsModal } from './CommentsModal';
 
 interface NewsCardProps {
   article: NewsArticle;
   currentIndex: number;
   totalCards: number;
   cardHeight?: number;
+  isTelugu?: boolean;
+  onBookmarkChange?: (id: string, isBookmarked: boolean) => void;
+  onAddComment?: (articleId: string, comment: NewsComment) => void;
 }
 
-export function NewsCard({ article, currentIndex, totalCards, cardHeight }: NewsCardProps) {
+export function NewsCard({
+  article,
+  currentIndex,
+  totalCards,
+  cardHeight,
+  isTelugu = true,
+  onBookmarkChange,
+  onAddComment,
+}: NewsCardProps) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const effectiveHeight = cardHeight || windowHeight - 120;
-  const imageHeight = Math.max(Math.min(effectiveHeight * 0.44, 340), 220);
+  const effectiveHeight = cardHeight || windowHeight - 110;
+  // Instagram reels-style media height: about 42% of the card height
+  const mediaHeight = Math.max(Math.min(effectiveHeight * 0.43, 340), 220);
 
   const [likes, setLikes] = useState(article.likesCount);
   const [hasLiked, setHasLiked] = useState(article.isLiked ?? false);
@@ -32,6 +44,8 @@ export function NewsCard({ article, currentIndex, totalCards, cardHeight }: News
   const [isBookmarked, setIsBookmarked] = useState(article.isBookmarked ?? false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(article.audioDurationSeconds);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [comments, setComments] = useState<NewsComment[]>(article.comments || []);
 
   // Audio countdown simulation
   useEffect(() => {
@@ -73,6 +87,13 @@ export function NewsCard({ article, currentIndex, totalCards, cardHeight }: News
     }
   };
 
+  const handleToggleBookmark = () => {
+    const nextState = !isBookmarked;
+    setIsBookmarked(nextState);
+    onBookmarkChange?.(article.id, nextState);
+    Alert.alert(nextState ? 'బుక్‌మార్క్‌లలో సేవ్ చేయబడింది' : 'బుక్‌మార్క్‌ల నుండి తొలగించబడింది');
+  };
+
   const handleShare = async () => {
     try {
       await Share.share({
@@ -86,7 +107,7 @@ export function NewsCard({ article, currentIndex, totalCards, cardHeight }: News
 
   const handleWhatsAppShare = () => {
     const text = encodeURIComponent(
-      `*${article.title}*\n\n${article.content.substring(0, 150)}...\n\n👉 పూర్తి వార్త కోసం NTODAY NEWS చూడండి: https://ntodaynews.com/`
+      `*${article.title}*\n\n${article.content.substring(0, 160)}...\n\n👉 పూర్తి వార్త కోసం NTODAY NEWS చూడండి: https://ntodaynews.com/`
     );
     Linking.openURL(`whatsapp://send?text=${text}`).catch(() => {
       handleShare();
@@ -97,58 +118,30 @@ export function NewsCard({ article, currentIndex, totalCards, cardHeight }: News
     setIsPlayingAudio(!isPlayingAudio);
   };
 
+  const handleAddNewComment = (newComment: NewsComment) => {
+    const updated = [newComment, ...comments];
+    setComments(updated);
+    onAddComment?.(article.id, newComment);
+  };
+
   return (
     <View style={[styles.cardContainer, { height: effectiveHeight, width: windowWidth }]}>
-      {/* 1. TOP IMAGE SECTION */}
-      <View style={[styles.imageWrapper, { height: imageHeight }]}>
-        <Image
-          source={{ uri: article.imageUrl }}
-          style={styles.cardImage}
-          resizeMode="cover"
+      {/* 1. UPPER SECTION: DYNAMIC PHOTO OR VIDEO WITH CURVED BORDERS */}
+      <View style={styles.mediaContainer}>
+        <MediaViewer
+          article={article}
+          currentIndex={currentIndex}
+          totalCards={totalCards}
+          height={mediaHeight}
+          isBookmarked={isBookmarked}
+          onToggleBookmark={handleToggleBookmark}
         />
-
-        <LinearGradient
-          colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(18,18,20,0.95)']}
-          style={styles.imageGradientOverlay}
-        />
-
-        {/* Floating Top Left: Author Tag */}
-        <View style={styles.authorBadge}>
-          <View style={styles.authorIconCircle}>
-            <Ionicons name="flash" size={13} color="#FFFFFF" />
-          </View>
-          <View>
-            <Text style={styles.authorName}>{article.authorName}</Text>
-            <Text style={styles.authorDesk}>{article.authorDesk}</Text>
-          </View>
-        </View>
-
-        {/* Floating Top Right: Card Index Counter */}
-        <View style={styles.counterBadge}>
-          <Text style={styles.counterText}>
-            {currentIndex}/{totalCards}
-          </Text>
-        </View>
-
-        {/* Bookmark Pin Tag on Bottom-Left of Image */}
-        <TouchableOpacity
-          style={styles.bookmarkPin}
-          onPress={() => {
-            setIsBookmarked(!isBookmarked);
-            Alert.alert(isBookmarked ? 'Removed from Bookmarks' : 'Saved to Bookmarks');
-          }}>
-          <Ionicons
-            name="bookmark"
-            size={16}
-            color="#FFFFFF"
-          />
-        </TouchableOpacity>
       </View>
 
-      {/* 2. RED SOURCE STRIP */}
+      {/* 2. RED SOURCE ATTRIBUTION STRIP */}
       <View style={styles.redStrip}>
         <View style={styles.redStripLeft}>
-          <Ionicons name="flash" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+          <Ionicons name="flash" size={13} color="#FFFFFF" style={{ marginRight: 6 }} />
           <Text style={styles.brandTitle}>{article.sourceName}</Text>
         </View>
         <View style={styles.redStripRight}>
@@ -156,11 +149,11 @@ export function NewsCard({ article, currentIndex, totalCards, cardHeight }: News
             <Text style={styles.sourceCreditText}>{article.sourceCredit} • </Text>
           ) : null}
           <Text style={styles.timeAgoText}>{article.timeAgo}</Text>
-          <Ionicons name="share-outline" size={13} color="#FFFFFF" style={{ marginLeft: 4 }} />
+          <Ionicons name="share-outline" size={13} color="#FFFFFF" style={{ marginLeft: 5 }} />
         </View>
       </View>
 
-      {/* 3. NEWS BODY CONTENT */}
+      {/* 3. NEWS BODY: TELUGU / ENGLISH HEADLINE & CONTENT */}
       <View style={styles.contentContainer}>
         <Text style={styles.headlineText} numberOfLines={3}>
           {article.title}
@@ -177,11 +170,10 @@ export function NewsCard({ article, currentIndex, totalCards, cardHeight }: News
           <Ionicons name="share-social-outline" size={24} color="#A1A1AA" />
         </TouchableOpacity>
 
-        {/* Comment Button */}
-        <TouchableOpacity
-          style={styles.actionItem}
-          onPress={() => Alert.alert('కామెంట్లు', `${article.commentsCount} మంది అభిప్రాయాలు తెలిపారు.`)}>
+        {/* Comment Button with Counter */}
+        <TouchableOpacity style={styles.actionItem} onPress={() => setShowCommentsModal(true)}>
           <Ionicons name="chatbubble-outline" size={22} color="#A1A1AA" />
+          <Text style={styles.actionCount}>{comments.length}</Text>
         </TouchableOpacity>
 
         {/* Like Button */}
@@ -208,7 +200,7 @@ export function NewsCard({ article, currentIndex, totalCards, cardHeight }: News
           <FontAwesome name="whatsapp" size={24} color="#25D366" />
         </TouchableOpacity>
 
-        {/* Listen Audio / TTS Button with countdown */}
+        {/* Listen Audio / TTS Countdown Button */}
         <TouchableOpacity
           style={[styles.audioButton, isPlayingAudio && styles.audioButtonActive]}
           onPress={toggleAudio}>
@@ -220,6 +212,15 @@ export function NewsCard({ article, currentIndex, totalCards, cardHeight }: News
           <Text style={styles.audioDurationText}>{secondsLeft}s</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Comments Bottom Sheet */}
+      <CommentsModal
+        visible={showCommentsModal}
+        storyTitle={article.title}
+        comments={comments}
+        onClose={() => setShowCommentsModal(false)}
+        onAddComment={handleAddNewComment}
+      />
     </View>
   );
 }
@@ -230,77 +231,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     overflow: 'hidden',
   },
-  imageWrapper: {
-    width: '100%',
-    position: 'relative',
-    backgroundColor: '#1c1c1f',
-  },
-  cardImage: {
-    width: '100%',
-    height: '100%',
-  },
-  imageGradientOverlay: {
-    ...StyleSheet.absoluteFill,
-  },
-  authorBadge: {
-    position: 'absolute',
-    top: 14,
-    left: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(24, 24, 27, 0.85)',
+  mediaContainer: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 20,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  authorIconCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#E50914',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  authorName: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  authorDesk: {
-    color: '#D4D4D8',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  counterBadge: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    backgroundColor: 'rgba(24, 24, 27, 0.85)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  counterText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  bookmarkPin: {
-    position: 'absolute',
-    bottom: -2,
-    left: 14,
-    backgroundColor: '#E50914',
-    paddingHorizontal: 6,
-    paddingVertical: 5,
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
-    zIndex: 5,
+    paddingTop: 6,
   },
   redStrip: {
     backgroundColor: '#BA1A1A',
@@ -308,7 +241,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 7,
+    marginTop: 4,
   },
   redStripLeft: {
     flexDirection: 'row',
@@ -336,9 +270,9 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 6,
     justifyContent: 'center',
   },
   headlineText: {
@@ -378,7 +312,7 @@ const styles = StyleSheet.create({
   audioButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
   },
   audioButtonActive: {

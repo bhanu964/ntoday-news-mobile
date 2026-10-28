@@ -1,16 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions, Image, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Alert, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MOCK_NEWS_ARTICLES } from '@/data/mockNews';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 export function VideosView() {
+  const { height: windowHeight } = useWindowDimensions();
   const currentVideo = MOCK_NEWS_ARTICLES[0];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { height: windowHeight - 120 }]}>
       <Image source={{ uri: currentVideo.imageUrl }} style={styles.videoBackground} resizeMode="cover" />
 
       <LinearGradient
@@ -19,7 +18,7 @@ export function VideosView() {
       />
 
       <TouchableOpacity
-        style={styles.centerPlayButton}
+        style={[styles.centerPlayButton, { top: (windowHeight - 120) * 0.38 }]}
         onPress={() => Alert.alert('వీడియో', 'ప్లేయర్ ప్రారంభమైంది.')}>
         <Ionicons name="play" size={38} color="#FFFFFF" style={{ marginLeft: 4 }} />
       </TouchableOpacity>
@@ -39,8 +38,7 @@ export function VideosView() {
 
 const styles = StyleSheet.create({
   container: {
-    width: SCREEN_WIDTH,
-    height: '100%',
+    width: '100%',
     backgroundColor: '#000000',
     position: 'relative',
   },
@@ -50,7 +48,6 @@ const styles = StyleSheet.create({
   },
   centerPlayButton: {
     position: 'absolute',
-    top: SCREEN_HEIGHT * 0.35,
     alignSelf: 'center',
     width: 68,
     height: 68,

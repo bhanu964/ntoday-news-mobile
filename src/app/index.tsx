@@ -4,7 +4,8 @@ import {
   StyleSheet,
   FlatList,
   Modal,
-  Dimensions,
+  useWindowDimensions,
+  LayoutChangeEvent,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
@@ -18,13 +19,21 @@ import { VideosView } from '@/components/VideosView';
 import { MOCK_NEWS_ARTICLES } from '@/data/mockNews';
 import { TopStory } from '@/types/news';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 export default function MainAppScreen() {
+  const { height: windowHeight } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [containerHeight, setContainerHeight] = useState<number>(windowHeight - 110);
   const flatListRef = useRef<FlatList>(null);
+
+  // Dynamic layout measurement to guarantee 100% card snapping
+  const handleLayout = (e: LayoutChangeEvent) => {
+    const { height } = e.nativeEvent.layout;
+    if (height > 0 && Math.abs(height - containerHeight) > 1) {
+      setContainerHeight(height);
+    }
+  };
 
   // Track active card index on vertical scroll
   const onViewableItemsChanged = useRef(
@@ -62,18 +71,19 @@ export default function MainAppScreen() {
       )}
 
       {/* 2. MAIN CONTENT AREA */}
-      <View style={styles.mainContent}>
+      <View style={styles.mainContent} onLayout={handleLayout}>
         {activeTab === 'home' && (
           <FlatList
             ref={flatListRef}
             data={MOCK_NEWS_ARTICLES}
             keyExtractor={(item) => item.id}
             renderItem={({ item, index }) => (
-              <View style={{ height: SCREEN_HEIGHT - 120 }}>
+              <View style={{ height: containerHeight }}>
                 <NewsCard
                   article={item}
                   currentIndex={index + 1}
                   totalCards={MOCK_NEWS_ARTICLES.length}
+                  cardHeight={containerHeight}
                 />
               </View>
             )}
@@ -81,9 +91,14 @@ export default function MainAppScreen() {
             showsVerticalScrollIndicator={false}
             onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={viewabilityConfig}
-            snapToInterval={SCREEN_HEIGHT - 120}
+            snapToInterval={containerHeight}
             snapToAlignment="start"
             decelerationRate="fast"
+            getItemLayout={(_, index) => ({
+              length: containerHeight,
+              offset: containerHeight * index,
+              index,
+            })}
           />
         )}
 
@@ -94,19 +109,25 @@ export default function MainAppScreen() {
             data={MOCK_NEWS_ARTICLES}
             keyExtractor={(item) => item.id}
             renderItem={({ item, index }) => (
-              <View style={{ height: SCREEN_HEIGHT - 120 }}>
+              <View style={{ height: containerHeight }}>
                 <NewsCard
                   article={item}
                   currentIndex={index + 1}
                   totalCards={MOCK_NEWS_ARTICLES.length}
+                  cardHeight={containerHeight}
                 />
               </View>
             )}
             pagingEnabled
             showsVerticalScrollIndicator={false}
-            snapToInterval={SCREEN_HEIGHT - 120}
+            snapToInterval={containerHeight}
             snapToAlignment="start"
             decelerationRate="fast"
+            getItemLayout={(_, index) => ({
+              length: containerHeight,
+              offset: containerHeight * index,
+              index,
+            })}
           />
         )}
 

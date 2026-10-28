@@ -3,26 +3,29 @@ import {
   View,
   Text,
   StyleSheet,
-  Dimensions,
   Image,
   TouchableOpacity,
   Share,
   Linking,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NewsArticle } from '@/types/news';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 interface NewsCardProps {
   article: NewsArticle;
   currentIndex: number;
   totalCards: number;
+  cardHeight?: number;
 }
 
-export function NewsCard({ article, currentIndex, totalCards }: NewsCardProps) {
+export function NewsCard({ article, currentIndex, totalCards, cardHeight }: NewsCardProps) {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const effectiveHeight = cardHeight || windowHeight - 120;
+  const imageHeight = Math.max(Math.min(effectiveHeight * 0.44, 340), 220);
+
   const [likes, setLikes] = useState(article.likesCount);
   const [hasLiked, setHasLiked] = useState(article.isLiked ?? false);
   const [hasDisliked, setHasDisliked] = useState(article.isDisliked ?? false);
@@ -95,9 +98,9 @@ export function NewsCard({ article, currentIndex, totalCards }: NewsCardProps) {
   };
 
   return (
-    <View style={styles.cardContainer}>
+    <View style={[styles.cardContainer, { height: effectiveHeight, width: windowWidth }]}>
       {/* 1. TOP IMAGE SECTION */}
-      <View style={styles.imageWrapper}>
+      <View style={[styles.imageWrapper, { height: imageHeight }]}>
         <Image
           source={{ uri: article.imageUrl }}
           style={styles.cardImage}
@@ -135,7 +138,7 @@ export function NewsCard({ article, currentIndex, totalCards }: NewsCardProps) {
             Alert.alert(isBookmarked ? 'Removed from Bookmarks' : 'Saved to Bookmarks');
           }}>
           <Ionicons
-            name={isBookmarked ? 'bookmark' : 'bookmark'}
+            name="bookmark"
             size={16}
             color="#FFFFFF"
           />
@@ -223,14 +226,12 @@ export function NewsCard({ article, currentIndex, totalCards }: NewsCardProps) {
 
 const styles = StyleSheet.create({
   cardContainer: {
-    width: SCREEN_WIDTH,
-    height: '100%',
     backgroundColor: '#121214',
     justifyContent: 'space-between',
+    overflow: 'hidden',
   },
   imageWrapper: {
     width: '100%',
-    height: SCREEN_HEIGHT * 0.42,
     position: 'relative',
     backgroundColor: '#1c1c1f',
   },
@@ -336,27 +337,28 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: 10,
+    paddingTop: 14,
+    paddingBottom: 8,
+    justifyContent: 'center',
   },
   headlineText: {
     color: '#FFFFFF',
-    fontSize: 21,
+    fontSize: 20,
     fontWeight: '800',
-    lineHeight: 30,
-    marginBottom: 12,
+    lineHeight: 28,
+    marginBottom: 8,
   },
   bodyText: {
     color: '#E4E4E7',
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 22,
     letterSpacing: 0.2,
   },
   actionToolbar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#27272a',

@@ -41,7 +41,7 @@ export default function MainAppScreen() {
   // Dynamic articles state (tracks read/unread, bookmarks, likes, comments)
   const [articles, setArticles] = useState<NewsArticle[]>(MOCK_NEWS_ARTICLES);
   const [unreadSessionIds, setUnreadSessionIds] = useState<string[]>([]);
-  const [containerHeight, setContainerHeight] = useState<number>(windowHeight - 110);
+  const [containerHeight, setContainerHeight] = useState<number>(0);
   const reelsFeedRef = useRef<ReelsFeedRef>(null);
 
   // Dynamic layout measurement to guarantee 100% card snapping
@@ -185,64 +185,70 @@ export default function MainAppScreen() {
 
       {/* 3. MAIN CONTENT: REELS-STYLE VERTICAL SWIPING NEWS FEED */}
       <View style={styles.mainContent} onLayout={handleLayout}>
-        {activeTab === 'home' && (
-          filteredArticles.length === 0 ? (
-            <View style={styles.emptyFeedBox}>
-              <Ionicons name="checkmark-done-circle" size={56} color="#E50914" />
-              <Text style={styles.emptyFeedTitle}>
-                {activeFilter === 'unread'
-                  ? 'మీరు అన్ని తాజా వార్తలను చదివేశారు! 🎉'
-                  : 'వార్తలు అందుబాటులో లేవు'}
-              </Text>
-              <Text style={styles.emptyFeedSubtitle}>
-                {activeFilter === 'unread'
-                  ? "You're all caught up! No unread news left."
-                  : 'No stories found in this section.'}
-              </Text>
-              <TouchableOpacity
-                style={styles.resetFeedBtn}
-                onPress={() => {
-                  setActiveFilter('latest');
-                  setSelectedCategory('all');
-                  setShowOnlyBookmarks(false);
-                  reelsFeedRef.current?.scrollToIndex(0, false);
-                }}>
-                <Text style={styles.resetFeedBtnText}>అన్ని వార్తలను చూడండి (View All)</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <ReelsFeed
-              ref={reelsFeedRef}
-              articles={filteredArticles}
-              containerHeight={containerHeight}
-              isTelugu={isTelugu}
-              onBookmarkChange={handleBookmarkToggle}
-              onAddComment={handleAddComment}
-              onActiveIndexChange={handleActiveIndexChange}
-            />
-          )
-        )}
+        {containerHeight <= 0 ? (
+          <View style={{ flex: 1, backgroundColor: '#121214' }} />
+        ) : (
+          <>
+            {activeTab === 'home' && (
+              filteredArticles.length === 0 ? (
+                <View style={styles.emptyFeedBox}>
+                  <Ionicons name="checkmark-done-circle" size={56} color="#E50914" />
+                  <Text style={styles.emptyFeedTitle}>
+                    {activeFilter === 'unread'
+                      ? 'మీరు అన్ని తాజా వార్తలను చదివేశారు! 🎉'
+                      : 'వార్తలు అందుబాటులో లేవు'}
+                  </Text>
+                  <Text style={styles.emptyFeedSubtitle}>
+                    {activeFilter === 'unread'
+                      ? "You're all caught up! No unread news left."
+                      : 'No stories found in this section.'}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.resetFeedBtn}
+                    onPress={() => {
+                      setActiveFilter('latest');
+                      setSelectedCategory('all');
+                      setShowOnlyBookmarks(false);
+                      reelsFeedRef.current?.scrollToIndex(0, false);
+                    }}>
+                    <Text style={styles.resetFeedBtnText}>అన్ని వార్తలను చూడండి (View All)</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <ReelsFeed
+                  ref={reelsFeedRef}
+                  articles={filteredArticles}
+                  containerHeight={containerHeight}
+                  isTelugu={isTelugu}
+                  onBookmarkChange={handleBookmarkToggle}
+                  onAddComment={handleAddComment}
+                  onActiveIndexChange={handleActiveIndexChange}
+                />
+              )
+            )}
 
-        {activeTab === 'live' && <LiveView />}
+            {activeTab === 'live' && <LiveView />}
 
-        {activeTab === 'feed' && (
-          <ReelsFeed
-            articles={filteredArticles}
-            containerHeight={containerHeight}
-            isTelugu={isTelugu}
-            onBookmarkChange={handleBookmarkToggle}
-            onAddComment={handleAddComment}
-            onActiveIndexChange={handleActiveIndexChange}
-          />
-        )}
+            {activeTab === 'feed' && (
+              <ReelsFeed
+                articles={filteredArticles}
+                containerHeight={containerHeight}
+                isTelugu={isTelugu}
+                onBookmarkChange={handleBookmarkToggle}
+                onAddComment={handleAddComment}
+                onActiveIndexChange={handleActiveIndexChange}
+              />
+            )}
 
-        {activeTab === 'videos' && <VideosView />}
+            {activeTab === 'videos' && <VideosView />}
 
-        {activeTab === 'explore' && (
-          <ExploreView
-            onStorySelect={handleStorySelect}
-            onOpenAccount={() => setShowAccountModal(true)}
-          />
+            {activeTab === 'explore' && (
+              <ExploreView
+                onStorySelect={handleStorySelect}
+                onOpenAccount={() => setShowAccountModal(true)}
+              />
+            )}
+          </>
         )}
       </View>
 

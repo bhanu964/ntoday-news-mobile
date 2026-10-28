@@ -20,6 +20,7 @@ interface NewsCardProps {
   totalCards: number;
   cardHeight?: number;
   isTelugu?: boolean;
+  isActive?: boolean;
   onBookmarkChange?: (id: string, isBookmarked: boolean) => void;
   onAddComment?: (articleId: string, comment: NewsComment) => void;
 }
@@ -30,6 +31,7 @@ export function NewsCard({
   totalCards,
   cardHeight,
   isTelugu = true,
+  isActive = true,
   onBookmarkChange,
   onAddComment,
 }: NewsCardProps) {
@@ -63,6 +65,13 @@ export function NewsCard({
     }
     return () => clearInterval(interval);
   }, [isPlayingAudio, secondsLeft, article.audioDurationSeconds]);
+
+  // Pause audio playback if card is no longer active in the Reels feed
+  useEffect(() => {
+    if (!isActive && isPlayingAudio) {
+      setIsPlayingAudio(false);
+    }
+  }, [isActive]);
 
   const handleLike = () => {
     if (hasLiked) {
@@ -135,6 +144,7 @@ export function NewsCard({
           height={mediaHeight}
           isBookmarked={isBookmarked}
           onToggleBookmark={handleToggleBookmark}
+          isActive={isActive}
         />
       </View>
 

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   Modal,
   useWindowDimensions,
   LayoutChangeEvent,
@@ -15,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { TopHeader, FeedFilterType } from '@/components/TopHeader';
 import { NewsCard } from '@/components/NewsCard';
+import { ReelsFeed, ReelsFeedRef } from '@/components/ReelsFeed';
 import { BottomNavBar, TabKey } from '@/components/BottomNavBar';
 import { ExploreView } from '@/components/ExploreView';
 import { AccountView } from '@/components/AccountView';
@@ -40,8 +40,9 @@ export default function MainAppScreen() {
 
   // Dynamic articles state (tracks read/unread, bookmarks, likes, comments)
   const [articles, setArticles] = useState<NewsArticle[]>(MOCK_NEWS_ARTICLES);
+  const [unreadSessionIds, setUnreadSessionIds] = useState<string[]>([]);
   const [containerHeight, setContainerHeight] = useState<number>(windowHeight - 110);
-  const flatListRef = useRef<FlatList>(null);
+  const reelsFeedRef = useRef<ReelsFeedRef>(null);
 
   // Dynamic layout measurement to guarantee 100% card snapping
   const handleLayout = (e: LayoutChangeEvent) => {
@@ -65,9 +66,9 @@ export default function MainAppScreen() {
       list = list.filter((a) => a.isBookmarked);
     }
 
-    // Filter by Unread / Latest
+    // Filter by Unread snapshot (prevents auto-deleting active item while user is reading it)
     if (activeFilter === 'unread') {
-      list = list.filter((a) => !a.isRead);
+      list = list.filter((a) => unreadSessionIds.includes(a.id));
     }
 
     // Filter by Category
@@ -76,25 +77,16 @@ export default function MainAppScreen() {
     }
 
     return list;
-  }, [articles, activeFilter, selectedCategory, showOnlyBookmarks]);
+  }, [articles, activeFilter, unreadSessionIds, selectedCategory, showOnlyBookmarks]);
 
-  // Mark article as read when scrolled into view
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: any[] }) => {
-      if (viewableItems.length > 0 && viewableItems[0].item) {
-        const item: NewsArticle = viewableItems[0].item;
-        if (!item.isRead) {
-          setArticles((prev) =>
-            prev.map((a) => (a.id === item.id ? { ...a, isRead: true } : a))
-          );
-        }
-      }
+  // Mark article as read when user settles on it without disrupting scroll or deleting active card
+  const handleActiveIndexChange = (index: number, article: NewsArticle) => {
+    if (!article.isRead) {
+      setArticles((prev) =>
+        prev.map((a) => (a.id === article.id ? { ...a, isRead: true } : a))
+      );
     }
-  ).current;
-
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 60,
-  }).current;
+  };
 
   // Handle header filter clicks
   const handleFilterChange = (filter: FeedFilterType) => {
@@ -102,9 +94,14 @@ export default function MainAppScreen() {
       setShowFeedbackModal(true);
       return;
     }
+    if (filter === 'unread') {
+      // Capture stable snapshot of unread articles for this browsing session
+      const unread = articles.filter((a) => !a.isRead).map((a) => a.id);
+      setUnreadSessionIds(unread);
+    }
     setActiveFilter(filter);
     setShowOnlyBookmarks(false);
-    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    reelsFeedRef.current?.scrollToIndex(0, false);
   };
 
   const handleBookmarkToggle = (id: string, isBookmarked: boolean) => {
@@ -134,8 +131,10 @@ export default function MainAppScreen() {
     const matchedIndex = articles.findIndex((a) =>
       a.title.includes(story.title.substring(0, 15))
     );
-    if (matchedIndex !== -1 && flatListRef.current) {
-      flatListRef.current.scrollToIndex({ index: matchedIndex, animated: true });
+    if (matchedIndex !== -1) {
+      setTimeout(() => {
+        reelsFeedRef.current?.scrollToIndex(matchedIndex, true);
+      }, 60);
     }
   };
 
@@ -206,40 +205,20 @@ export default function MainAppScreen() {
                   setActiveFilter('latest');
                   setSelectedCategory('all');
                   setShowOnlyBookmarks(false);
+                  reelsFeedRef.current?.scrollToIndex(0, false);
                 }}>
                 <Text style={styles.resetFeedBtnText}>అన్ని వార్తలను చూడండి (View All)</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            <FlatList
-              ref={flatListRef}
-              data={filteredArticles}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item, index }) => (
-                <View style={{ height: containerHeight }}>
-                  <NewsCard
-                    article={item}
-                    currentIndex={index + 1}
-                    totalCards={filteredArticles.length}
-                    cardHeight={containerHeight}
-                    isTelugu={isTelugu}
-                    onBookmarkChange={handleBookmarkToggle}
-                    onAddComment={handleAddComment}
-                  />
-                </View>
-              )}
-              pagingEnabled
-              showsVerticalScrollIndicator={false}
-              onViewableItemsChanged={onViewableItemsChanged}
-              viewabilityConfig={viewabilityConfig}
-              snapToInterval={containerHeight}
-              snapToAlignment="start"
-              decelerationRate="fast"
-              getItemLayout={(_, index) => ({
-                length: containerHeight,
-                offset: containerHeight * index,
-                index,
-              })}
+            <ReelsFeed
+              ref={reelsFeedRef}
+              articles={filteredArticles}
+              containerHeight={containerHeight}
+              isTelugu={isTelugu}
+              onBookmarkChange={handleBookmarkToggle}
+              onAddComment={handleAddComment}
+              onActiveIndexChange={handleActiveIndexChange}
             />
           )
         )}
@@ -247,32 +226,13 @@ export default function MainAppScreen() {
         {activeTab === 'live' && <LiveView />}
 
         {activeTab === 'feed' && (
-          <FlatList
-            data={filteredArticles}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item, index }) => (
-              <View style={{ height: containerHeight }}>
-                <NewsCard
-                  article={item}
-                  currentIndex={index + 1}
-                  totalCards={filteredArticles.length}
-                  cardHeight={containerHeight}
-                  isTelugu={isTelugu}
-                  onBookmarkChange={handleBookmarkToggle}
-                  onAddComment={handleAddComment}
-                />
-              </View>
-            )}
-            pagingEnabled
-            showsVerticalScrollIndicator={false}
-            snapToInterval={containerHeight}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            getItemLayout={(_, index) => ({
-              length: containerHeight,
-              offset: containerHeight * index,
-              index,
-            })}
+          <ReelsFeed
+            articles={filteredArticles}
+            containerHeight={containerHeight}
+            isTelugu={isTelugu}
+            onBookmarkChange={handleBookmarkToggle}
+            onAddComment={handleAddComment}
+            onActiveIndexChange={handleActiveIndexChange}
           />
         )}
 

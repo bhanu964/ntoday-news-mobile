@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,6 +12,7 @@ interface MediaViewerProps {
   height: number;
   isBookmarked: boolean;
   onToggleBookmark: () => void;
+  isActive?: boolean;
 }
 
 export function MediaViewer({
@@ -21,19 +22,46 @@ export function MediaViewer({
   height,
   isBookmarked,
   onToggleBookmark,
+  isActive = true,
 }: MediaViewerProps) {
   const isVideo = article.mediaType === 'video' && !!article.videoUrl;
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
+  const webVideoRef = useRef<any>(null);
 
   // Initialize expo-video player for video news
   const player = useVideoPlayer(isVideo ? article.videoUrl! : '', (p) => {
     p.loop = true;
     p.muted = isMuted;
-    if (isVideo) {
+    if (isVideo && isActive) {
       p.play();
     }
   });
+
+  // Play/pause depending on whether this card is currently active in the Reels feed
+  useEffect(() => {
+    if (!player) return;
+    if (isActive) {
+      player.play();
+      setIsPlaying(true);
+    } else {
+      player.pause();
+      setIsPlaying(false);
+    }
+  }, [isActive, player]);
+
+  // Sync web video element
+  useEffect(() => {
+    if (Platform.OS === 'web' && webVideoRef.current) {
+      if (isActive) {
+        webVideoRef.current.play?.().catch(() => {});
+        setIsPlaying(true);
+      } else {
+        webVideoRef.current.pause?.();
+        setIsPlaying(false);
+      }
+    }
+  }, [isActive]);
 
   const togglePlayPause = () => {
     if (!player) return;
@@ -58,9 +86,10 @@ export function MediaViewer({
         <View style={styles.mediaBox}>
           {Platform.OS === 'web' ? (
             <video
+              ref={webVideoRef}
               src={article.videoUrl}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              autoPlay
+              autoPlay={isActive}
               loop
               muted={isMuted}
               playsInline

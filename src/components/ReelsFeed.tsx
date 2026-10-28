@@ -189,7 +189,7 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
       isWheelLockedRef.current = true;
       setTimeout(() => {
         isWheelLockedRef.current = false;
-      }, 400);
+      }, 500);
 
       const currentIndex = activeIndexRef.current;
       const targetIndex =
@@ -249,11 +249,11 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
             />
           </View>
         )}
-        // Native 1-Page Paging Configuration
-        pagingEnabled={Platform.OS === 'ios'}
+        // Smooth Paging Configuration (slower and gentler glide)
+        pagingEnabled={false}
         snapToInterval={containerHeight}
         snapToAlignment="start"
-        decelerationRate="fast"
+        decelerationRate="normal"
         disableIntervalMomentum={true}
         showsVerticalScrollIndicator={false}
         showsHorizontalScrollIndicator={false}
@@ -289,6 +289,7 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
             // @ts-ignore
             scrollSnapType: 'y mandatory',
             overflowY: 'scroll',
+            scrollBehavior: 'smooth',
           },
         ]}
       />

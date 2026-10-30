@@ -51,9 +51,8 @@ export const MOCK_NEWS_ARTICLES: NewsArticle[] = [
     title: 'ఉద్యోగం కోసం వెళ్లి.. ఆచూకీ లేకుండా!',
     content:
       'ఛత్తీస్‌గఢ్‌లోని బిలాస్‌పూర్‌కు చెందిన 21 ఏళ్ల వినీత్ కుమార్ దూబేకు నెలకు ₹లక్ష 14 వేల శాలరీతో రెస్టారెంట్‌లో జాబ్ ఇస్తామని టెలిగ్రామ్ గ్రూప్ ద్వారా ఆఫర్ వచ్చింది. జాబ్ కోసం అతను అక్టోబర్ 1న రష్యా వెళ్లాడు. తనను జాబ్ పేరుతో మోసం చేశారని అక్టోబర్ 6న కుటుంబానికి చెప్పిన వినీత్, మరుసటి రోజు నుంచి అందుబాటులో లేదు. దీనిపై రష్యాలోని ఇండియన్ ఎంబసీని సంప్రదించినట్లు బిలాస్‌పూర్ SP రాజ్‌నేశ్ సింగ్ తెలిపారు.',
-    mediaType: 'video',
-    imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=1200&q=80',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    mediaType: 'image',
+    imageUrl: 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?auto=format&fit=crop&w=1200&q=80',
     category: 'క్రైమ్',
     likesCount: 5,
     commentsCount: 8,
@@ -83,9 +82,8 @@ export const MOCK_NEWS_ARTICLES: NewsArticle[] = [
     title: 'తీరం దాటిన రెండో తుఫాను.. విశాఖపై తీవ్ర ప్రభావం!',
     content:
       'అరేబియా సముద్రంలో అతి తీవ్ర తుఫానుకి దగ్గర్లోనే కదులుతున్న మరో తుఫాను ప్రభావంతో ఉత్తరాంధ్ర జిల్లాల్లో ఈదురు గాలులతో కూడిన భారీ వర్షాలు కురుస్తున్నాయి. విశాఖ, విజయనగరం, శ్రీకాకుళం తీర ప్రాంతాల్లో 70-80 కి.మీ వేగంతో గాలులు వీస్తున్నాయి. మత్స్యకారులు సముద్రంలోకి వేటకు వెళ్లవద్దని వాతావరణ శాఖ హెచ్చరించింది. తీరప్రాంత ప్రజలను సురక్షిత ప్రాంతాలకు తరలించారు.',
-    mediaType: 'video',
+    mediaType: 'image',
     imageUrl: 'https://images.unsplash.com/photo-1527482797697-8795b05a13fe?auto=format&fit=crop&w=1200&q=80',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
     category: 'వాతావరణం',
     likesCount: 9,
     commentsCount: 21,
@@ -161,9 +159,8 @@ export const MOCK_NEWS_ARTICLES: NewsArticle[] = [
     title: 'హైదరాబాద్ మెట్రో ఫేజ్-2 కు కేంద్ర ఆమోదం.. రూ. 24,000 కోట్లు',
     content:
       'హైదరాబాద్ మెట్రో రెండో దశ విస్తరణ ప్రాజెక్టుకు కేంద్ర మంత్రివర్గం గ్రీన్ సిగ్నల్ ఇచ్చింది. శంషాబాద్ విమానాశ్రయం నుండి ఓల్డ్ సిటీ, మియాపూర్ నుండి పటాన్‌చెరు మార్గాల్లో మొత్తం 76 కిలోమీటర్ల మేర కొత్త లైన్లు నిర్మించనున్నారు. ప్రాజెక్టును మూడేళ్లలో పూర్తి చేసి ప్రజలకు అందుబాటులోకి తీసుకురావాలని లక్ష్యంగా పెట్టుకున్నారు.',
-    mediaType: 'video',
+    mediaType: 'image',
     imageUrl: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
     category: 'తెలంగాణ',
     likesCount: 42,
     commentsCount: 28,

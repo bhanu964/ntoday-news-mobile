@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -28,16 +28,23 @@ export function TopHeader({
 
   return (
     <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 8) }]}>
-      {/* 1. Language Switcher Pill */}
-      <TouchableOpacity
-        style={styles.langPill}
-        activeOpacity={0.7}
-        onPress={onLanguageToggle}>
-        <View style={styles.langBadge}>
-          <Text style={styles.langBadgeText}>{isTelugu ? 'తె' : 'En'}</Text>
-        </View>
-        <Text style={styles.langSecondaryText}>{isTelugu ? 'A' : 'తె'}</Text>
-      </TouchableOpacity>
+      {/* 1. Brand Logo + Language Switcher Pill */}
+      <View style={styles.leftSection}>
+        <Image
+          source={require('../../assets/images/ntoday-official-logo.png')}
+          style={styles.headerLogo}
+          resizeMode="contain"
+        />
+        <TouchableOpacity
+          style={styles.langPill}
+          activeOpacity={0.7}
+          onPress={onLanguageToggle}>
+          <View style={styles.langBadge}>
+            <Text style={styles.langBadgeText}>{isTelugu ? 'తె' : 'En'}</Text>
+          </View>
+          <Text style={styles.langSecondaryText}>{isTelugu ? 'A' : 'తె'}</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* 2. Segmented Filter Pills */}
       <View style={styles.segmentedContainer}>
@@ -102,12 +109,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingBottom: 8,
     backgroundColor: '#121214',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#26262a',
     zIndex: 10,
+  },
+  leftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerLogo: {
+    width: 44,
+    height: 26,
+    borderRadius: 3,
   },
   langPill: {
     flexDirection: 'row',

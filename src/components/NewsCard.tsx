@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Image,
   Share,
   Linking,
   Alert,
@@ -151,7 +152,11 @@ export function NewsCard({
       {/* 2. RED SOURCE ATTRIBUTION STRIP */}
       <View style={styles.redStrip}>
         <View style={styles.redStripLeft}>
-          <Ionicons name="flash" size={13} color="#FFFFFF" style={{ marginRight: 6 }} />
+          <Image
+            source={require('../../assets/images/ntoday-official-logo.png')}
+            style={styles.sourceLogo}
+            resizeMode="contain"
+          />
           <Text style={styles.brandTitle}>{article.sourceName}</Text>
         </View>
         <View style={styles.redStripRight}>
@@ -257,6 +262,12 @@ const styles = StyleSheet.create({
   redStripLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  sourceLogo: {
+    width: 25,
+    height: 15,
+    marginRight: 6,
+    borderRadius: 2,
   },
   brandTitle: {
     color: '#FFFFFF',

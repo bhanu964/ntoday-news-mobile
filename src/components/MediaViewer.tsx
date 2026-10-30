@@ -27,7 +27,22 @@ export function MediaViewer({
   const isVideo = article.mediaType === 'video' && !!article.videoUrl;
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
+  const [hasImageError, setHasImageError] = useState(false);
   const webVideoRef = useRef<any>(null);
+
+  // Fallback random news images if an image fails or is empty
+  const fallbackImages = [
+    'https://images.unsplash.com/photo-1540910419892-4a36d2c3266c?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1527482797697-8795b05a13fe?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80',
+  ];
+  const safeImageUri =
+    article.imageUrl && !hasImageError
+      ? article.imageUrl
+      : fallbackImages[currentIndex % fallbackImages.length];
 
   // Initialize expo-video player for video news
   const player = useVideoPlayer(isVideo ? article.videoUrl! : '', (p) => {
@@ -82,58 +97,67 @@ export function MediaViewer({
 
   return (
     <View style={[styles.container, { height }]}>
-      {isVideo ? (
-        <View style={styles.mediaBox}>
-          {Platform.OS === 'web' ? (
-            <video
-              ref={webVideoRef}
-              src={article.videoUrl}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              autoPlay={isActive}
-              loop
-              muted={isMuted}
-              playsInline
-            />
-          ) : (
-            <VideoView
-              player={player}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              nativeControls={false}
-            />
-          )}
+      <View style={styles.mediaBox}>
+        {/* Background News Image (Always rendered so the user never sees a black screen) */}
+        <Image
+          source={{ uri: safeImageUri }}
+          style={styles.image}
+          resizeMode="cover"
+          onError={() => setHasImageError(true)}
+        />
 
-          {/* Video Center Play/Pause Indicator (tappable) */}
-          <TouchableOpacity
-            style={styles.centerTapZone}
-            activeOpacity={0.9}
-            onPress={togglePlayPause}>
-            {!isPlaying && (
-              <View style={styles.pausedIconBadge}>
-                <Ionicons name="play" size={32} color="#FFFFFF" style={{ marginLeft: 3 }} />
-              </View>
+        {isVideo && (
+          <>
+            {Platform.OS === 'web' ? (
+              <video
+                ref={webVideoRef}
+                src={article.videoUrl}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                }}
+                autoPlay={isActive}
+                loop
+                muted={isMuted}
+                playsInline
+              />
+            ) : (
+              <VideoView
+                player={player}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                nativeControls={false}
+              />
             )}
-          </TouchableOpacity>
 
-          {/* Video Mute/Unmute Pill */}
-          <TouchableOpacity style={styles.mutePill} onPress={toggleMute}>
-            <Ionicons
-              name={isMuted ? 'volume-mute' : 'volume-high'}
-              size={14}
-              color="#FFFFFF"
-            />
-            <Text style={styles.muteText}>{isMuted ? 'Unmute' : 'Mute'}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.mediaBox}>
-          <Image
-            source={{ uri: article.imageUrl }}
-            style={styles.image}
-            resizeMode="cover"
-          />
-        </View>
-      )}
+            {/* Video Center Play/Pause Indicator (tappable) */}
+            <TouchableOpacity
+              style={styles.centerTapZone}
+              activeOpacity={0.9}
+              onPress={togglePlayPause}>
+              {!isPlaying && (
+                <View style={styles.pausedIconBadge}>
+                  <Ionicons name="play" size={32} color="#FFFFFF" style={{ marginLeft: 3 }} />
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* Video Mute/Unmute Pill */}
+            <TouchableOpacity style={styles.mutePill} onPress={toggleMute}>
+              <Ionicons
+                name={isMuted ? 'volume-mute' : 'volume-high'}
+                size={14}
+                color="#FFFFFF"
+              />
+              <Text style={styles.muteText}>{isMuted ? 'Unmute' : 'Mute'}</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
 
       {/* Modern Gradient Overlays for Badges */}
       <LinearGradient
@@ -142,10 +166,14 @@ export function MediaViewer({
         pointerEvents="none"
       />
 
-      {/* Floating Top Left: Author Tag */}
+      {/* Floating Top Left: Author Tag with Official Logo replacing thunder */}
       <View style={styles.authorBadge}>
         <View style={styles.authorIconCircle}>
-          <Ionicons name="flash" size={13} color="#FFFFFF" />
+          <Image
+            source={require('../../assets/images/ntoday-official-logo.png')}
+            style={styles.authorLogo}
+            resizeMode="contain"
+          />
         </View>
         <View>
           <Text style={styles.authorName}>{article.authorName}</Text>
@@ -251,12 +279,17 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.15)',
   },
   authorIconCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#E50914',
+    width: 24,
+    height: 16,
+    borderRadius: 2,
+    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  authorLogo: {
+    width: 24,
+    height: 15,
   },
   authorName: {
     color: '#FFFFFF',

@@ -10,7 +10,7 @@ import {
   Alert,
   useWindowDimensions,
 } from 'react-native';
-import { Ionicons, FontAwesome } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { NewsArticle, NewsComment } from '@/types/news';
 import { MediaViewer } from './MediaViewer';
 import { CommentsModal } from './CommentsModal';
@@ -212,7 +212,7 @@ export function NewsCard({
 
         {/* WhatsApp Share Button */}
         <TouchableOpacity style={styles.actionItem} onPress={handleWhatsAppShare}>
-          <FontAwesome name="whatsapp" size={24} color="#25D366" />
+          <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
         </TouchableOpacity>
 
         {/* Listen Audio / TTS Countdown Button */}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type FeedFilterType = 'latest' | 'unread' | 'feedback';
@@ -97,7 +97,7 @@ export function TopHeader({
           style={styles.iconButton}
           onPress={onTunePress}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <MaterialCommunityIcons name="tune" size={21} color="#FFFFFF" />
+          <Ionicons name="options-outline" size={21} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </View>

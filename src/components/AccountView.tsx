@@ -8,7 +8,7 @@ import {
   Alert,
   Linking,
 } from 'react-native';
-import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface AccountViewProps {
@@ -48,7 +48,7 @@ export function AccountView({ onBack }: AccountViewProps) {
             <Text style={styles.userEmail}>bhanurajaka1qaz@gmail.com</Text>
           </View>
           <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
-            <Feather name="edit-2" size={18} color="#71717A" />
+            <Ionicons name="pencil" size={17} color="#71717A" />
           </TouchableOpacity>
         </View>
 
@@ -57,7 +57,7 @@ export function AccountView({ onBack }: AccountViewProps) {
           style={styles.menuRow}
           onPress={() => Alert.alert('రిపోర్టర్ పోర్టల్', 'మీ వార్తా కథనాలు మరియు సమర్పణలు ఇక్కడ కనిపిస్తాయి.')}>
           <View style={styles.menuRowLeft}>
-            <MaterialCommunityIcons name="newspaper-variant-outline" size={20} color="#A1A1AA" />
+            <Ionicons name="newspaper-outline" size={20} color="#A1A1AA" />
             <Text style={styles.menuRowText}>నా సమర్పణలు</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#52525B" />

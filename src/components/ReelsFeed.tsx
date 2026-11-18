@@ -23,6 +23,8 @@ interface ReelsFeedProps {
   onBookmarkChange?: (id: string, isBookmarked: boolean) => void;
   onAddComment?: (articleId: string, comment: NewsComment) => void;
   onActiveIndexChange?: (index: number, article: NewsArticle) => void;
+  onLoadMore?: () => void;
+  onToggleLike?: (articleId: string, currentLikes: number) => Promise<{ newCount: number; isLiked: boolean } | void>;
   initialIndex?: number;
 }
 
@@ -34,11 +36,14 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
     onBookmarkChange,
     onAddComment,
     onActiveIndexChange,
+    onLoadMore,
+    onToggleLike,
     initialIndex = 0,
   },
   ref
 ) {
   const { width: windowWidth } = useWindowDimensions();
+  const cardWidth = Platform.OS === 'web' ? Math.min(windowWidth, 480) : windowWidth;
   const flatListRef = useRef<FlatList>(null);
 
   // Single authoritative active index
@@ -173,8 +178,12 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
           onActiveIndexChange?.(settledIndex, articles[settledIndex]);
         }
       }
+
+      if (settledIndex >= articles.length - 2) {
+        onLoadMore?.();
+      }
     },
-    [containerHeight, articles, onActiveIndexChange]
+    [containerHeight, articles, onActiveIndexChange, onLoadMore]
   );
 
   // Web Wheel / Trackpad listener for desktop & mobile browsers: strictly 1 item per wheel flick
@@ -219,7 +228,7 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
 
   return (
     <View
-      style={[styles.container, { height: containerHeight, width: windowWidth }]}
+      style={[styles.container, { height: containerHeight, width: cardWidth }]}
       // @ts-ignore: onWheel is supported on react-native-web
       onWheel={Platform.OS === 'web' ? handleWebWheel : undefined}>
       <FlatList
@@ -230,7 +239,7 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
           <View
             style={[
               styles.cardWrapper,
-              { height: containerHeight, width: windowWidth },
+              { height: containerHeight, width: cardWidth },
               Platform.OS === 'web' && {
                 // @ts-ignore: CSS scroll-snap properties for web browsers
                 scrollSnapAlign: 'start',
@@ -242,13 +251,17 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
               currentIndex={index + 1}
               totalCards={articles.length}
               cardHeight={containerHeight}
+              cardWidth={cardWidth}
               isTelugu={isTelugu}
               isActive={index === activeIndex}
               onBookmarkChange={onBookmarkChange}
               onAddComment={onAddComment}
+              onToggleLike={onToggleLike}
             />
           </View>
         )}
+        onEndReached={onLoadMore}
+        onEndReachedThreshold={0.5}
         // Smooth Paging Configuration (slower and gentler glide)
         pagingEnabled={false}
         snapToInterval={containerHeight}

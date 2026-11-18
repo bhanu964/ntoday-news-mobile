@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,12 @@ import {
   LayoutChangeEvent,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 import { TopHeader, FeedFilterType } from '@/components/TopHeader';
-import { NewsCard } from '@/components/NewsCard';
 import { ReelsFeed, ReelsFeedRef } from '@/components/ReelsFeed';
 import { BottomNavBar, TabKey } from '@/components/BottomNavBar';
 import { ExploreView } from '@/components/ExploreView';
@@ -22,8 +22,12 @@ import { LiveView } from '@/components/LiveView';
 import { VideosView } from '@/components/VideosView';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { CategoryFilterModal } from '@/components/CategoryFilterModal';
-import { MOCK_NEWS_ARTICLES } from '@/data/mockNews';
 import { NewsArticle, NewsComment, TopStory, FeedbackSubmission } from '@/types/news';
+import { useArticles } from '@/hooks/useArticles';
+import { useBookmarks } from '@/hooks/useBookmarks';
+import { useLikes } from '@/hooks/useLikes';
+import { StorageService } from '@/services/storageService';
+import { TRANSLATIONS } from '@/constants/translations';
 
 export default function MainAppScreen() {
   const { height: windowHeight } = useWindowDimensions();
@@ -38,11 +42,36 @@ export default function MainAppScreen() {
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
   const [showOnlyBookmarks, setShowOnlyBookmarks] = useState<boolean>(false);
 
-  // Dynamic articles state (tracks read/unread, bookmarks, likes, comments)
-  const [articles, setArticles] = useState<NewsArticle[]>(MOCK_NEWS_ARTICLES);
+  // Unread snapshot list & layout measurement
   const [unreadSessionIds, setUnreadSessionIds] = useState<string[]>([]);
   const [containerHeight, setContainerHeight] = useState<number>(0);
   const reelsFeedRef = useRef<ReelsFeedRef>(null);
+
+  // Hooks for Data & Services
+  const {
+    articles,
+    loading,
+    refreshing,
+    hasMore,
+    loadMore,
+    refresh,
+    markArticleAsRead,
+    setArticles,
+  } = useArticles({
+    categoryId: selectedCategory === 'all' ? undefined : selectedCategory,
+  });
+
+  const { toggleBookmark } = useBookmarks();
+  const { toggleLike } = useLikes();
+
+  // Load language preference on startup
+  useEffect(() => {
+    StorageService.getLanguage().then((lang) => {
+      setIsTelugu(lang === 'te');
+    });
+  }, []);
+
+  const t = TRANSLATIONS[isTelugu ? 'te' : 'en'];
 
   // Dynamic layout measurement to guarantee 100% card snapping
   const handleLayout = (e: LayoutChangeEvent) => {
@@ -73,7 +102,9 @@ export default function MainAppScreen() {
 
     // Filter by Category
     if (selectedCategory !== 'all') {
-      list = list.filter((a) => a.category === selectedCategory);
+      list = list.filter(
+        (a) => a.category === selectedCategory || a.category_id === selectedCategory
+      );
     }
 
     return list;
@@ -82,9 +113,7 @@ export default function MainAppScreen() {
   // Mark article as read when user settles on it without disrupting scroll or deleting active card
   const handleActiveIndexChange = (index: number, article: NewsArticle) => {
     if (!article.isRead) {
-      setArticles((prev) =>
-        prev.map((a) => (a.id === article.id ? { ...a, isRead: true } : a))
-      );
+      markArticleAsRead(article.id);
     }
   };
 
@@ -104,7 +133,8 @@ export default function MainAppScreen() {
     reelsFeedRef.current?.scrollToIndex(0, false);
   };
 
-  const handleBookmarkToggle = (id: string, isBookmarked: boolean) => {
+  const handleBookmarkToggle = async (id: string, isBookmarked: boolean) => {
+    await toggleBookmark(id);
     setArticles((prev) =>
       prev.map((a) => (a.id === id ? { ...a, isBookmarked } : a))
     );
@@ -128,8 +158,10 @@ export default function MainAppScreen() {
     setActiveTab('home');
     setActiveFilter('latest');
     setShowOnlyBookmarks(false);
-    const matchedIndex = articles.findIndex((a) =>
-      a.title.includes(story.title.substring(0, 15))
+    const matchedIndex = articles.findIndex(
+      (a) =>
+        (story.id && a.id === story.id) ||
+        a.title.includes(story.title.substring(0, 15))
     );
     if (matchedIndex !== -1) {
       setTimeout(() => {
@@ -139,8 +171,13 @@ export default function MainAppScreen() {
   };
 
   const handleFeedbackSubmit = (feedback: FeedbackSubmission) => {
-    // Stores feedback in state / logs it
     console.log('[NTODAY Feedback Submitted]:', feedback);
+  };
+
+  const handleLanguageToggle = () => {
+    const next = !isTelugu;
+    setIsTelugu(next);
+    StorageService.setLanguage(next ? 'te' : 'en');
   };
 
   return (
@@ -154,14 +191,14 @@ export default function MainAppScreen() {
           unreadCount={unreadCount}
           isTelugu={isTelugu}
           onFilterChange={handleFilterChange}
-          onLanguageToggle={() => setIsTelugu(!isTelugu)}
+          onLanguageToggle={handleLanguageToggle}
           onTunePress={() => setShowFilterModal(true)}
           onBookmarksPress={() => {
             const next = !showOnlyBookmarks;
             setShowOnlyBookmarks(next);
             Alert.alert(
-              next ? 'బుక్‌మార్క్స్ మోడ్' : 'అన్ని వార్తలు',
-              next ? 'సేవ్ చేసిన వార్తలను చూపిస్తున్నాము.' : 'తిరిగి పూర్తి వార్తలకు వచ్చారు.'
+              next ? t.bookmarksActive : (isTelugu ? 'అన్ని వార్తలు' : 'All Stories'),
+              next ? t.bookmarksActiveMsg : t.allNewsMsg
             );
           }}
         />
@@ -171,7 +208,7 @@ export default function MainAppScreen() {
       {(selectedCategory !== 'all' || showOnlyBookmarks) && activeTab === 'home' && (
         <View style={styles.activeFilterBanner}>
           <Text style={styles.activeFilterText}>
-            {showOnlyBookmarks ? '🔖 సేవ్ చేసిన బుక్‌మార్క్స్' : `📂 కేటగిరీ: ${selectedCategory}`}
+            {showOnlyBookmarks ? t.savedBookmarksBanner : `${t.categoryBanner}${selectedCategory}`}
           </Text>
           <TouchableOpacity
             onPress={() => {
@@ -189,19 +226,19 @@ export default function MainAppScreen() {
           <View style={{ flex: 1, backgroundColor: '#121214' }} />
         ) : (
           <>
-            {activeTab === 'home' && (
-              filteredArticles.length === 0 ? (
+            {activeTab === 'home' &&
+              (loading && articles.length === 0 ? (
+                <View style={styles.emptyFeedBox}>
+                  <ActivityIndicator size="large" color="#E50914" />
+                </View>
+              ) : filteredArticles.length === 0 ? (
                 <View style={styles.emptyFeedBox}>
                   <Ionicons name="checkmark-done-circle" size={56} color="#E50914" />
                   <Text style={styles.emptyFeedTitle}>
-                    {activeFilter === 'unread'
-                      ? 'మీరు అన్ని తాజా వార్తలను చదివేశారు! 🎉'
-                      : 'వార్తలు అందుబాటులో లేవు'}
+                    {activeFilter === 'unread' ? t.allCaughtUpTitle : t.noNewsTitle}
                   </Text>
                   <Text style={styles.emptyFeedSubtitle}>
-                    {activeFilter === 'unread'
-                      ? "You're all caught up! No unread news left."
-                      : 'No stories found in this section.'}
+                    {activeFilter === 'unread' ? t.allCaughtUpSubtitle : t.noNewsSubtitle}
                   </Text>
                   <TouchableOpacity
                     style={styles.resetFeedBtn}
@@ -209,9 +246,10 @@ export default function MainAppScreen() {
                       setActiveFilter('latest');
                       setSelectedCategory('all');
                       setShowOnlyBookmarks(false);
+                      refresh();
                       reelsFeedRef.current?.scrollToIndex(0, false);
                     }}>
-                    <Text style={styles.resetFeedBtnText}>అన్ని వార్తలను చూడండి (View All)</Text>
+                    <Text style={styles.resetFeedBtnText}>{t.viewAllBtn}</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -223,11 +261,12 @@ export default function MainAppScreen() {
                   onBookmarkChange={handleBookmarkToggle}
                   onAddComment={handleAddComment}
                   onActiveIndexChange={handleActiveIndexChange}
+                  onLoadMore={loadMore}
+                  onToggleLike={toggleLike}
                 />
-              )
-            )}
+              ))}
 
-            {activeTab === 'live' && <LiveView />}
+            {activeTab === 'live' && <LiveView isTelugu={isTelugu} />}
 
             {activeTab === 'feed' && (
               <ReelsFeed
@@ -237,15 +276,18 @@ export default function MainAppScreen() {
                 onBookmarkChange={handleBookmarkToggle}
                 onAddComment={handleAddComment}
                 onActiveIndexChange={handleActiveIndexChange}
+                onLoadMore={loadMore}
+                onToggleLike={toggleLike}
               />
             )}
 
-            {activeTab === 'videos' && <VideosView />}
+            {activeTab === 'videos' && <VideosView isTelugu={isTelugu} />}
 
             {activeTab === 'explore' && (
               <ExploreView
                 onStorySelect={handleStorySelect}
                 onOpenAccount={() => setShowAccountModal(true)}
+                isTelugu={isTelugu}
               />
             )}
           </>
@@ -266,6 +308,7 @@ export default function MainAppScreen() {
       <CategoryFilterModal
         visible={showFilterModal}
         selectedCategory={selectedCategory}
+        isTelugu={isTelugu}
         onSelectCategory={setSelectedCategory}
         onClose={() => setShowFilterModal(false)}
       />
@@ -276,7 +319,11 @@ export default function MainAppScreen() {
         animationType="slide"
         presentationStyle="fullScreen"
         onRequestClose={() => setShowAccountModal(false)}>
-        <AccountView onBack={() => setShowAccountModal(false)} />
+        <View style={styles.accountModalWrapper}>
+          <View style={styles.accountModalContainer}>
+            <AccountView isTelugu={isTelugu} onBack={() => setShowAccountModal(false)} />
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -333,5 +380,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
+  },
+  accountModalWrapper: {
+    flex: 1,
+    backgroundColor: '#09090b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountModalContainer: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 480,
+    backgroundColor: '#121214',
   },
 });

@@ -1,12 +1,32 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Alert, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MOCK_NEWS_ARTICLES } from '@/data/mockNews';
+import { ArticlesService } from '@/services/articlesService';
+import { NewsArticle } from '@/types/news';
 
-export function VideosView() {
+interface VideosViewProps {
+  isTelugu?: boolean;
+}
+
+export function VideosView({ isTelugu = true }: VideosViewProps) {
   const { height: windowHeight } = useWindowDimensions();
-  const currentVideo = MOCK_NEWS_ARTICLES[0];
+  const [currentVideo, setCurrentVideo] = useState<NewsArticle>(
+    MOCK_NEWS_ARTICLES.find((a) => a.videoUrl) || MOCK_NEWS_ARTICLES[0]
+  );
+
+  useEffect(() => {
+    ArticlesService.fetchArticles().then((res) => {
+      const videoArticle = res.articles.find((a) => a.videoUrl || a.mediaType === 'video');
+      if (videoArticle) {
+        setCurrentVideo(videoArticle);
+      }
+    });
+  }, []);
+
+  const displayTitle = !isTelugu && currentVideo.title_en ? currentVideo.title_en : currentVideo.title;
+  const displayContent = !isTelugu && currentVideo.content_en ? currentVideo.content_en : currentVideo.content;
 
   return (
     <View style={[styles.container, { height: windowHeight - 120 }]}>
@@ -19,7 +39,12 @@ export function VideosView() {
 
       <TouchableOpacity
         style={[styles.centerPlayButton, { top: (windowHeight - 120) * 0.38 }]}
-        onPress={() => Alert.alert('వీడియో', 'ప్లేయర్ ప్రారంభమైంది.')}>
+        onPress={() =>
+          Alert.alert(
+            isTelugu ? 'వీడియో' : 'Video Player',
+            isTelugu ? 'ప్లేయర్ ప్రారంభమైంది.' : 'Streaming initialized.'
+          )
+        }>
         <Ionicons name="play" size={38} color="#FFFFFF" style={{ marginLeft: 4 }} />
       </TouchableOpacity>
 
@@ -27,9 +52,9 @@ export function VideosView() {
         <View style={styles.badgeVideo}>
           <Text style={styles.badgeVideoText}>NTODAY VIDEO</Text>
         </View>
-        <Text style={styles.videoTitle}>{currentVideo.title}</Text>
+        <Text style={styles.videoTitle}>{displayTitle}</Text>
         <Text style={styles.videoSummary} numberOfLines={2}>
-          {currentVideo.content}
+          {displayContent}
         </Text>
       </View>
     </View>

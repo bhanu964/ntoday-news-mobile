@@ -8,6 +8,7 @@ import {
   Share,
   Linking,
   Alert,
+  Platform,
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,10 +21,12 @@ interface NewsCardProps {
   currentIndex: number;
   totalCards: number;
   cardHeight?: number;
+  cardWidth?: number;
   isTelugu?: boolean;
   isActive?: boolean;
   onBookmarkChange?: (id: string, isBookmarked: boolean) => void;
   onAddComment?: (articleId: string, comment: NewsComment) => void;
+  onToggleLike?: (articleId: string, currentLikes: number) => Promise<{ newCount: number; isLiked: boolean } | void>;
 }
 
 export function NewsCard({
@@ -31,12 +34,15 @@ export function NewsCard({
   currentIndex,
   totalCards,
   cardHeight,
+  cardWidth,
   isTelugu = true,
   isActive = true,
   onBookmarkChange,
   onAddComment,
+  onToggleLike,
 }: NewsCardProps) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const effectiveWidth = cardWidth || (Platform.OS === 'web' ? Math.min(windowWidth, 480) : windowWidth);
   const effectiveHeight = cardHeight || windowHeight - 110;
   // Instagram reels-style media height: about 42% of the card height
   const mediaHeight = Math.max(Math.min(effectiveHeight * 0.43, 340), 220);
@@ -49,6 +55,20 @@ export function NewsCard({
   const [secondsLeft, setSecondsLeft] = useState(article.audioDurationSeconds);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [comments, setComments] = useState<NewsComment[]>(article.comments || []);
+
+  // Sync state when article prop changes
+  useEffect(() => {
+    setLikes(article.likesCount);
+    setHasLiked(article.isLiked ?? false);
+    setIsBookmarked(article.isBookmarked ?? false);
+    if (article.comments) {
+      setComments(article.comments);
+    }
+  }, [article.id, article.likesCount, article.isLiked, article.isBookmarked, article.comments]);
+
+  // Dynamic bilingual text
+  const displayTitle = !isTelugu && article.title_en ? article.title_en : article.title;
+  const displayContent = !isTelugu && article.content_en ? article.content_en : article.content;
 
   // Audio countdown simulation
   useEffect(() => {
@@ -75,6 +95,16 @@ export function NewsCard({
   }, [isActive]);
 
   const handleLike = () => {
+    if (onToggleLike) {
+      onToggleLike(article.id, likes).then((res) => {
+        if (res) {
+          setLikes(res.newCount);
+          setHasLiked(res.isLiked);
+        }
+      });
+      if (hasDisliked) setHasDisliked(false);
+      return;
+    }
     if (hasLiked) {
       setLikes(likes - 1);
       setHasLiked(false);
@@ -101,14 +131,19 @@ export function NewsCard({
     const nextState = !isBookmarked;
     setIsBookmarked(nextState);
     onBookmarkChange?.(article.id, nextState);
-    Alert.alert(nextState ? 'బుక్‌మార్క్‌లలో సేవ్ చేయబడింది' : 'బుక్‌మార్క్‌ల నుండి తొలగించబడింది');
+    Alert.alert(
+      nextState
+        ? (isTelugu ? 'బుక్‌మార్క్‌లలో సేవ్ చేయబడింది' : 'Saved to Bookmarks')
+        : (isTelugu ? 'బుక్‌మార్క్‌ల నుండి తొలగించబడింది' : 'Removed from Bookmarks')
+    );
   };
 
   const handleShare = async () => {
     try {
+      const prompt = isTelugu ? 'పూర్తి వివరాలు NTODAY NEWS లో చదవండి:' : 'Read full story on NTODAY NEWS:';
       await Share.share({
-        message: `${article.title}\n\nపూర్తి వివరాలు NTODAY NEWS లో చదవండి:\nhttps://ntodaynews.com/`,
-        title: article.title,
+        message: `${displayTitle}\n\n${prompt}\nhttps://ntodaynews.com/`,
+        title: displayTitle,
       });
     } catch (err) {
       // ignore
@@ -116,8 +151,9 @@ export function NewsCard({
   };
 
   const handleWhatsAppShare = () => {
+    const prompt = isTelugu ? '👉 పూర్తి వార్త కోసం NTODAY NEWS చూడండి:' : '👉 Read full story on NTODAY NEWS:';
     const text = encodeURIComponent(
-      `*${article.title}*\n\n${article.content.substring(0, 160)}...\n\n👉 పూర్తి వార్త కోసం NTODAY NEWS చూడండి: https://ntodaynews.com/`
+      `*${displayTitle}*\n\n${displayContent.substring(0, 160)}...\n\n${prompt} https://ntodaynews.com/`
     );
     Linking.openURL(`whatsapp://send?text=${text}`).catch(() => {
       handleShare();
@@ -135,7 +171,7 @@ export function NewsCard({
   };
 
   return (
-    <View style={[styles.cardContainer, { height: effectiveHeight, width: windowWidth }]}>
+    <View style={[styles.cardContainer, { height: effectiveHeight, width: effectiveWidth }]}>
       {/* 1. UPPER SECTION: DYNAMIC PHOTO OR VIDEO WITH CURVED BORDERS */}
       <View style={styles.mediaContainer}>
         <MediaViewer
@@ -171,10 +207,10 @@ export function NewsCard({
       {/* 3. NEWS BODY: TELUGU / ENGLISH HEADLINE & CONTENT */}
       <View style={styles.contentContainer}>
         <Text style={styles.headlineText} numberOfLines={3}>
-          {article.title}
+          {displayTitle}
         </Text>
         <Text style={styles.bodyText}>
-          {article.content}
+          {displayContent}
         </Text>
       </View>
 
@@ -231,8 +267,10 @@ export function NewsCard({
       {/* Comments Bottom Sheet */}
       <CommentsModal
         visible={showCommentsModal}
-        storyTitle={article.title}
+        articleId={article.id}
+        storyTitle={displayTitle}
         comments={comments}
+        isTelugu={isTelugu}
         onClose={() => setShowCommentsModal(false)}
         onAddComment={handleAddNewComment}
       />

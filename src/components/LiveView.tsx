@@ -1,15 +1,64 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Linking } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  Linking,
+  RefreshControl,
+  ActivityIndicator,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MOCK_NEWS_ARTICLES } from '@/data/mockNews';
+import { NewsArticle } from '@/types/news';
+import { ArticlesService } from '@/services/articlesService';
+import { TRANSLATIONS } from '@/constants/translations';
 
-export function LiveView() {
+interface LiveViewProps {
+  isTelugu?: boolean;
+}
+
+export function LiveView({ isTelugu = true }: LiveViewProps) {
+  const [updates, setUpdates] = useState<NewsArticle[]>(MOCK_NEWS_ARTICLES);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const t = TRANSLATIONS[isTelugu ? 'te' : 'en'];
+
+  const loadLiveFeed = useCallback(async () => {
+    try {
+      const res = await ArticlesService.fetchArticles({ limit: 10 });
+      if (res.articles.length > 0) {
+        setUpdates(res.articles);
+      }
+    } catch {
+      // Keep existing
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadLiveFeed();
+  }, [loadLiveFeed]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadLiveFeed();
+  };
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#E50914" />}>
       {/* Live Badge Banner */}
       <View style={styles.liveBanner}>
         <View style={styles.pulseDot} />
-        <Text style={styles.liveBannerText}>NTODAY LIVE 24x7 NEWS TICKER</Text>
+        <Text style={styles.liveBannerText}>{t.liveBannerText}</Text>
       </View>
 
       <TouchableOpacity
@@ -20,27 +69,40 @@ export function LiveView() {
           <Ionicons name="radio" size={24} color="#FFFFFF" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.radioTitle}>NTODAY Live Audio Stream</Text>
-          <Text style={styles.radioSubtitle}>Listen live directly from Hyderabad studio</Text>
+          <Text style={styles.radioTitle}>{t.liveRadioTitle}</Text>
+          <Text style={styles.radioSubtitle}>{t.liveRadioSubtitle}</Text>
         </View>
         <Ionicons name="volume-high" size={22} color="#E50914" />
       </TouchableOpacity>
 
-      <Text style={styles.sectionTitle}>తాజా లైవ్ అప్‌డేట్స్ (Breaking Updates)</Text>
+      <Text style={styles.sectionTitle}>{t.liveBreakingUpdates}</Text>
 
-      {MOCK_NEWS_ARTICLES.map((article, idx) => (
-        <View key={article.id} style={styles.updateCard}>
-          <View style={styles.updateHeader}>
-            <View style={styles.badgeBreaking}>
-              <Text style={styles.badgeBreakingText}>BREAKING</Text>
-            </View>
-            <Text style={styles.updateTime}>{idx * 15 + 3} నిమిషాల క్రితం</Text>
-          </View>
-          <Text style={styles.updateHeadline}>{article.title}</Text>
-          <Text style={styles.updateContent}>{article.content}</Text>
-          <Image source={{ uri: article.imageUrl }} style={styles.updateImage} resizeMode="cover" />
+      {loading && !refreshing ? (
+        <View style={styles.loaderBox}>
+          <ActivityIndicator size="small" color="#E50914" />
         </View>
-      ))}
+      ) : (
+        updates.map((article, idx) => {
+          const displayTitle = !isTelugu && article.title_en ? article.title_en : article.title;
+          const displayContent = !isTelugu && article.content_en ? article.content_en : article.content;
+
+          return (
+            <View key={article.id} style={styles.updateCard}>
+              <View style={styles.updateHeader}>
+                <View style={styles.badgeBreaking}>
+                  <Text style={styles.badgeBreakingText}>BREAKING</Text>
+                </View>
+                <Text style={styles.updateTime}>
+                  {article.timeAgo || `${idx * 15 + 3} ${t.minutesAgo}`}
+                </Text>
+              </View>
+              <Text style={styles.updateHeadline}>{displayTitle}</Text>
+              <Text style={styles.updateContent}>{displayContent}</Text>
+              <Image source={{ uri: article.imageUrl }} style={styles.updateImage} resizeMode="cover" />
+            </View>
+          );
+        })
+      )}
     </ScrollView>
   );
 }
@@ -53,6 +115,11 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+  },
+  loaderBox: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   liveBanner: {
     flexDirection: 'row',

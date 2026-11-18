@@ -1,36 +1,56 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArticlesService } from '@/services/articlesService';
+import { NewsCategory } from '@/types/news';
 
 interface CategoryFilterModalProps {
   visible: boolean;
   selectedCategory: string;
+  isTelugu?: boolean;
   onSelectCategory: (category: string) => void;
   onClose: () => void;
 }
 
-export const NEWS_CATEGORIES = [
-  { id: 'all', name: 'అన్నీ (All Stories)', icon: 'apps' },
-  { id: 'రాజకీయాలు', name: 'రాజకీయాలు (Politics)', icon: 'megaphone' },
-  { id: 'క్రైమ్', name: 'క్రైమ్ (Crime)', icon: 'shield-alert' },
-  { id: 'వాతావరణం', name: 'వాతావరణం (Weather)', icon: 'cloudy-night' },
-  { id: 'బిజినెస్', name: 'బిజినెస్ (Business)', icon: 'trending-up' },
-  { id: 'విద్య', name: 'విద్య & ఉద్యోగాలు (Jobs & Education)', icon: 'school' },
-  { id: 'తెలంగాణ', name: 'తెలంగాణ (Telangana)', icon: 'location' },
-  { id: 'సినిమా', name: 'సినిమా (Cinema)', icon: 'film' },
-  { id: 'క్రీడలు', name: 'క్రీడలు (Sports)', icon: 'football' },
-  { id: 'వ్యవసాయం', name: 'వ్యవసాయం (Agriculture)', icon: 'leaf' },
-  { id: 'టెక్నాలజీ', name: 'టెక్నాలజీ (Tech & ISRO)', icon: 'rocket' },
+export const DEFAULT_NEWS_CATEGORIES = [
+  { id: 'all', name: 'అన్నీ (All Stories)', name_en: 'All Stories', icon: 'apps' },
+  { id: 'రాజకీయాలు', name: 'రాజకీయాలు (Politics)', name_en: 'Politics', icon: 'megaphone' },
+  { id: 'క్రైమ్', name: 'క్రైమ్ (Crime)', name_en: 'Crime', icon: 'shield-alert' },
+  { id: 'వాతావరణం', name: 'వాతావరణం (Weather)', name_en: 'Weather', icon: 'cloudy-night' },
+  { id: 'బిజినెస్', name: 'బిజినెస్ (Business)', name_en: 'Business', icon: 'trending-up' },
+  { id: 'విద్య', name: 'విద్య & ఉద్యోగాలు (Jobs & Education)', name_en: 'Jobs & Education', icon: 'school' },
+  { id: 'తెలంగాణ', name: 'తెలంగాణ (Telangana)', name_en: 'Telangana', icon: 'location' },
+  { id: 'సినిమా', name: 'సినిమా (Cinema)', name_en: 'Cinema', icon: 'film' },
+  { id: 'క్రీడలు', name: 'క్రీడలు (Sports)', name_en: 'Sports', icon: 'football' },
+  { id: 'వ్యవసాయం', name: 'వ్యవసాయం (Agriculture)', name_en: 'Agriculture', icon: 'leaf' },
+  { id: 'టెక్నాలజీ', name: 'టెక్నాలజీ (Tech & ISRO)', name_en: 'Tech & ISRO', icon: 'rocket' },
 ] as const;
 
 export function CategoryFilterModal({
   visible,
   selectedCategory,
+  isTelugu = true,
   onSelectCategory,
   onClose,
 }: CategoryFilterModalProps) {
   const insets = useSafeAreaInsets();
+  const [categories, setCategories] = useState<Array<{ id: string; name: string; name_en?: string; icon?: string }>>(
+    [...DEFAULT_NEWS_CATEGORIES]
+  );
+
+  useEffect(() => {
+    ArticlesService.fetchCategories().then((cats) => {
+      if (cats && cats.length > 0) {
+        // Ensure 'all' is always first
+        const hasAll = cats.some((c) => c.id === 'all');
+        const formatted = hasAll
+          ? cats
+          : [{ id: 'all', name: 'అన్నీ (All Stories)', name_en: 'All Stories', slug: 'all', icon: 'apps' }, ...cats];
+        setCategories(formatted);
+      }
+    });
+  }, []);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -39,7 +59,9 @@ export function CategoryFilterModal({
           <View style={styles.header}>
             <View style={styles.dragHandle} />
             <View style={styles.headerRow}>
-              <Text style={styles.title}>కేటగిరీలు ఎంచుకోండి (Categories)</Text>
+              <Text style={styles.title}>
+                {isTelugu ? 'కేటగిరీలు ఎంచుకోండి (Categories)' : 'Select Categories'}
+              </Text>
               <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
                 <Ionicons name="close" size={22} color="#A1A1AA" />
               </TouchableOpacity>
@@ -47,8 +69,10 @@ export function CategoryFilterModal({
           </View>
 
           <ScrollView contentContainerStyle={styles.list}>
-            {NEWS_CATEGORIES.map((cat) => {
+            {categories.map((cat) => {
               const isSelected = selectedCategory === cat.id;
+              const displayName = isTelugu ? cat.name : cat.name_en || cat.name;
+
               return (
                 <TouchableOpacity
                   key={cat.id}
@@ -64,13 +88,13 @@ export function CategoryFilterModal({
                         isSelected ? styles.iconCircleActive : styles.iconCircleInactive,
                       ]}>
                       <Ionicons
-                        name={cat.icon as any}
+                        name={(cat.icon || 'apps') as any}
                         size={18}
                         color={isSelected ? '#FFFFFF' : '#A1A1AA'}
                       />
                     </View>
                     <Text style={[styles.categoryName, isSelected && styles.categoryNameActive]}>
-                      {cat.name}
+                      {displayName}
                     </Text>
                   </View>
                   {isSelected && <Ionicons name="checkmark-circle" size={22} color="#E50914" />}
@@ -97,6 +121,9 @@ const styles = StyleSheet.create({
     maxHeight: '75%',
     borderWidth: 1,
     borderColor: '#27272a',
+    maxWidth: 480,
+    width: '100%',
+    alignSelf: 'center',
   },
   header: {
     paddingHorizontal: 18,

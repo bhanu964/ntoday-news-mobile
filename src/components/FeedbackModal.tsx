@@ -191,6 +191,9 @@ const styles = StyleSheet.create({
     maxHeight: '85%',
     borderWidth: 1,
     borderColor: '#27272a',
+    maxWidth: 480,
+    width: '100%',
+    alignSelf: 'center',
   },
   header: {
     paddingHorizontal: 18,

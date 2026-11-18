@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,20 +10,35 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StorageService } from '@/services/storageService';
+import { TRANSLATIONS } from '@/constants/translations';
 
 interface AccountViewProps {
   onBack: () => void;
+  isTelugu?: boolean;
 }
 
-export function AccountView({ onBack }: AccountViewProps) {
+export function AccountView({ onBack, isTelugu = true }: AccountViewProps) {
   const insets = useSafeAreaInsets();
+  const [bookmarkCount, setBookmarkCount] = useState<number>(0);
+  const t = TRANSLATIONS[isTelugu ? 'te' : 'en'];
+
+  useEffect(() => {
+    StorageService.getBookmarks().then((ids) => {
+      setBookmarkCount(ids.length);
+    });
+  }, []);
 
   const handleEditProfile = () => {
     Alert.prompt
-      ? Alert.prompt('Edit Profile', 'Enter your name:', (name) => {
-          Alert.alert('Updated', `Welcome, ${name}`);
-        })
-      : Alert.alert('Profile', 'Profile edit screen');
+      ? Alert.prompt(
+          isTelugu ? 'ప్రొఫైల్ సవరణ' : 'Edit Profile',
+          isTelugu ? 'మీ పేరు నమోదు చేయండి:' : 'Enter your name:',
+          (name) => {
+            Alert.alert(isTelugu ? 'నవీకరించబడింది' : 'Updated', `Welcome, ${name}`);
+          }
+        )
+      : Alert.alert(isTelugu ? 'ప్రొఫైల్' : 'Profile', isTelugu ? 'ప్రొఫైల్ సవరణ స్క్రీన్' : 'Profile edit screen');
   };
 
   return (
@@ -33,7 +48,7 @@ export function AccountView({ onBack }: AccountViewProps) {
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Account</Text>
+        <Text style={styles.headerTitle}>{t.accountTitle}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -44,7 +59,7 @@ export function AccountView({ onBack }: AccountViewProps) {
             <Text style={styles.avatarQuestionMark}>?</Text>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.userName}>User</Text>
+            <Text style={styles.userName}>NTODAY User</Text>
             <Text style={styles.userEmail}>bhanurajaka1qaz@gmail.com</Text>
           </View>
           <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
@@ -55,60 +70,77 @@ export function AccountView({ onBack }: AccountViewProps) {
         {/* 3. MY SUBMISSIONS / REPORTER ROW */}
         <TouchableOpacity
           style={styles.menuRow}
-          onPress={() => Alert.alert('రిపోర్టర్ పోర్టల్', 'మీ వార్తా కథనాలు మరియు సమర్పణలు ఇక్కడ కనిపిస్తాయి.')}>
+          onPress={() =>
+            Alert.alert(
+              isTelugu ? 'రిపోర్టర్ పోర్టల్' : 'Reporter Portal',
+              isTelugu
+                ? 'మీ వార్తా కథనాలు మరియు సమర్పణలు ఇక్కడ కనిపిస్తాయి.'
+                : 'Your verified news submissions will be listed here.'
+            )
+          }>
           <View style={styles.menuRowLeft}>
             <Ionicons name="newspaper-outline" size={20} color="#A1A1AA" />
-            <Text style={styles.menuRowText}>నా సమర్పణలు</Text>
+            <Text style={styles.menuRowText}>{t.mySubmissions}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#52525B" />
         </TouchableOpacity>
 
         {/* 4. SAVED SECTION */}
         <View style={styles.sectionDivider}>
-          <Text style={styles.sectionLabel}>SAVED</Text>
+          <Text style={styles.sectionLabel}>{t.savedSection}</Text>
         </View>
 
         <TouchableOpacity
           style={styles.menuRow}
-          onPress={() => Alert.alert('Bookmarks', 'Bookmarked stories list')}>
+          onPress={() =>
+            Alert.alert(
+              t.savedBookmarks,
+              isTelugu
+                ? `మీరు ${bookmarkCount} కథనాలను సేవ్ చేశారు.`
+                : `You have ${bookmarkCount} saved stories.`
+            )
+          }>
           <View style={styles.menuRowLeft}>
             <Ionicons name="bookmark-outline" size={20} color="#A1A1AA" />
-            <Text style={styles.menuRowText}>Bookmarks</Text>
+            <Text style={styles.menuRowText}>{t.savedBookmarks}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#52525B" />
+          <View style={styles.readingOptions}>
+            {bookmarkCount > 0 && <Text style={styles.countBadge}>{bookmarkCount}</Text>}
+            <Ionicons name="chevron-forward" size={18} color="#52525B" />
+          </View>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.menuRow}
-          onPress={() => Alert.alert('Saved Shorts', 'Saved video shorts list')}>
+          onPress={() => Alert.alert(t.savedShorts, isTelugu ? 'సేవ్ చేసిన వీడియో షార్ట్స్' : 'Saved video shorts list')}>
           <View style={styles.menuRowLeft}>
             <Ionicons name="play-circle-outline" size={20} color="#A1A1AA" />
-            <Text style={styles.menuRowText}>Saved Shorts</Text>
+            <Text style={styles.menuRowText}>{t.savedShorts}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#52525B" />
         </TouchableOpacity>
 
         {/* 5. PREFERENCES SECTION */}
         <View style={styles.sectionDivider}>
-          <Text style={styles.sectionLabel}>PREFERENCES</Text>
+          <Text style={styles.sectionLabel}>{t.preferencesSection}</Text>
         </View>
 
         <TouchableOpacity
           style={styles.menuRow}
-          onPress={() => Alert.alert('Preferences', 'Select news categories and location')}>
+          onPress={() => Alert.alert(t.feedAndContent, isTelugu ? 'కేటగిరీలు మరియు ప్రాంతం' : 'Select categories and location')}>
           <View style={styles.menuRowLeft}>
             <Ionicons name="options-outline" size={20} color="#A1A1AA" />
-            <Text style={styles.menuRowText}>Feed & Content</Text>
+            <Text style={styles.menuRowText}>{t.feedAndContent}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#52525B" />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.menuRow}
-          onPress={() => Alert.alert('Font Size', 'Adjust reading font size')}>
+          onPress={() => Alert.alert(t.readingFontSize, isTelugu ? 'అక్షర పరిమాణాన్ని మార్చండి' : 'Adjust reading font size')}>
           <View style={styles.menuRowLeft}>
             <Ionicons name="book-outline" size={20} color="#A1A1AA" />
-            <Text style={styles.menuRowText}>Reading</Text>
+            <Text style={styles.menuRowText}>{t.readingFontSize}</Text>
           </View>
           <View style={styles.readingOptions}>
             <Text style={styles.readingAa}>Aa</Text>
@@ -119,7 +151,7 @@ export function AccountView({ onBack }: AccountViewProps) {
 
         {/* 6. MORE SECTION */}
         <View style={styles.sectionDivider}>
-          <Text style={styles.sectionLabel}>MORE</Text>
+          <Text style={styles.sectionLabel}>{t.moreSection}</Text>
         </View>
 
         <TouchableOpacity
@@ -127,7 +159,7 @@ export function AccountView({ onBack }: AccountViewProps) {
           onPress={() => Linking.openURL('https://ntodaynews.com/privacy_policy')}>
           <View style={styles.menuRowLeft}>
             <Ionicons name="lock-closed-outline" size={20} color="#A1A1AA" />
-            <Text style={styles.menuRowText}>Privacy & Safety</Text>
+            <Text style={styles.menuRowText}>{t.privacySafety}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#52525B" />
         </TouchableOpacity>
@@ -137,27 +169,27 @@ export function AccountView({ onBack }: AccountViewProps) {
           onPress={() => Linking.openURL('https://youtube.com/@ntodaynews')}>
           <View style={styles.menuRowLeft}>
             <Ionicons name="heart-outline" size={20} color="#A1A1AA" />
-            <Text style={styles.menuRowText}>Follow us</Text>
+            <Text style={styles.menuRowText}>{t.followUs}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#52525B" />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.menuRow}
-          onPress={() => Alert.alert('Feedback', 'Send suggestions to editor@ntodaynews.com')}>
+          onPress={() => Alert.alert(t.myFeedback, isTelugu ? 'సూచనలను editor@ntodaynews.com కు పంపండి' : 'Send feedback to editor@ntodaynews.com')}>
           <View style={styles.menuRowLeft}>
             <Ionicons name="chatbubble-ellipses-outline" size={20} color="#A1A1AA" />
-            <Text style={styles.menuRowText}>My Feedback</Text>
+            <Text style={styles.menuRowText}>{t.myFeedback}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#52525B" />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.menuRow}
-          onPress={() => Alert.alert('Account Settings', 'Manage your NToday account & subscriptions')}>
+          onPress={() => Alert.alert(t.accountSettings, isTelugu ? 'ఖాతా వివరాలు' : 'Manage your NToday account')}>
           <View style={styles.menuRowLeft}>
             <Ionicons name="person-outline" size={20} color="#A1A1AA" />
-            <Text style={styles.menuRowText}>Account</Text>
+            <Text style={styles.menuRowText}>{t.accountSettings}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#52525B" />
         </TouchableOpacity>
@@ -272,5 +304,10 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     borderWidth: 1.5,
     borderColor: '#71717A',
+  },
+  countBadge: {
+    color: '#E50914',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

@@ -13,11 +13,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NewsComment } from '@/types/news';
+import { CommentsService } from '@/services/commentsService';
 
 interface CommentsModalProps {
   visible: boolean;
   storyTitle: string;
   comments: NewsComment[];
+  articleId?: string;
+  isTelugu?: boolean;
   onClose: () => void;
   onAddComment: (comment: NewsComment) => void;
 }
@@ -26,25 +29,40 @@ export function CommentsModal({
   visible,
   storyTitle,
   comments,
+  articleId,
+  isTelugu = true,
   onClose,
   onAddComment,
 }: CommentsModalProps) {
   const insets = useSafeAreaInsets();
   const [commentText, setCommentText] = useState('');
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!commentText.trim()) return;
+
+    const text = commentText.trim();
+    const userName = isTelugu ? 'నేను (మీరు)' : 'Reader (You)';
+    setCommentText('');
+
+    if (articleId) {
+      try {
+        const saved = await CommentsService.addComment(articleId, userName, text);
+        onAddComment(saved);
+        return;
+      } catch {
+        // Fallback to local
+      }
+    }
 
     const newComment: NewsComment = {
       id: `comment-${Date.now()}`,
-      userName: 'నేను (మీరు)',
-      text: commentText.trim(),
+      userName,
+      text,
       timeAgo: 'Just now',
       likesCount: 0,
     };
 
     onAddComment(newComment);
-    setCommentText('');
   };
 
   return (
@@ -58,7 +76,7 @@ export function CommentsModal({
             <View style={styles.dragHandle} />
             <View style={styles.headerRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.headerTitle}>వ్యాఖ్యలు (Comments)</Text>
+                <Text style={styles.headerTitle}>{isTelugu ? 'వ్యాఖ్యలు (Comments)' : 'Comments'}</Text>
                 <Text style={styles.headerSubtitle} numberOfLines={1}>
                   {storyTitle}
                 </Text>
@@ -73,8 +91,12 @@ export function CommentsModal({
           {comments.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="chatbubbles-outline" size={42} color="#52525B" />
-              <Text style={styles.emptyText}>మొదటి వ్యాఖ్యను మీరే రాయండి!</Text>
-              <Text style={styles.emptySubtext}>Be the first to share your thoughts.</Text>
+              <Text style={styles.emptyText}>
+                {isTelugu ? 'మొదటి వ్యాఖ్యను మీరే రాయండి!' : 'Be the first to share your thoughts!'}
+              </Text>
+              <Text style={styles.emptySubtext}>
+                {isTelugu ? 'Be the first to share your thoughts.' : 'Join the discussion.'}
+              </Text>
             </View>
           ) : (
             <FlatList
@@ -102,7 +124,7 @@ export function CommentsModal({
           <View style={styles.inputBar}>
             <TextInput
               style={styles.input}
-              placeholder="మీ అభిప్రాయాన్ని రాయండి..."
+              placeholder={isTelugu ? 'మీ అభిప్రాయాన్ని రాయండి...' : 'Write your comment...'}
               placeholderTextColor="#71717A"
               value={commentText}
               onChangeText={setCommentText}
@@ -135,6 +157,9 @@ const styles = StyleSheet.create({
     minHeight: 380,
     borderWidth: 1,
     borderColor: '#27272a',
+    maxWidth: 480,
+    width: '100%',
+    alignSelf: 'center',
   },
   header: {
     paddingHorizontal: 16,

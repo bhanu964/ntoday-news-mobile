@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,23 +12,39 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { TOP_STORIES, PLAYLIST_STORIES } from '@/data/mockNews';
 import { TopStory } from '@/types/news';
+import { ArticlesService } from '@/services/articlesService';
+import { TRANSLATIONS } from '@/constants/translations';
 
 interface ExploreViewProps {
   onStorySelect: (story: TopStory) => void;
   onOpenAccount: () => void;
+  isTelugu?: boolean;
 }
 
-export function ExploreView({ onStorySelect, onOpenAccount }: ExploreViewProps) {
+export function ExploreView({ onStorySelect, onOpenAccount, isTelugu = true }: ExploreViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isPlayingHeadlines, setIsPlayingHeadlines] = useState(false);
+  const [stories, setStories] = useState<TopStory[]>(TOP_STORIES);
+
+  const t = TRANSLATIONS[isTelugu ? 'te' : 'en'];
+
+  useEffect(() => {
+    ArticlesService.fetchTopStories().then((res) => {
+      if (res && res.length > 0) {
+        setStories(res);
+      }
+    });
+  }, []);
 
   const filteredStories = searchQuery.trim()
-    ? TOP_STORIES.filter(
+    ? stories.filter(
         (s) =>
           s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          s.excerpt.toLowerCase().includes(searchQuery.toLowerCase())
+          (s.title_en && s.title_en.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          s.excerpt.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (s.excerpt_en && s.excerpt_en.toLowerCase().includes(searchQuery.toLowerCase()))
       )
-    : TOP_STORIES;
+    : stories;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -38,7 +54,7 @@ export function ExploreView({ onStorySelect, onOpenAccount }: ExploreViewProps) 
           <Ionicons name="search" size={18} color="#71717A" style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search all news, including older stories"
+            placeholder={t.searchPlaceholder}
             placeholderTextColor="#71717A"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -63,7 +79,9 @@ export function ExploreView({ onStorySelect, onOpenAccount }: ExploreViewProps) 
           setIsPlayingHeadlines(!isPlayingHeadlines);
           Alert.alert(
             isPlayingHeadlines ? 'Audio Paused' : 'Playing News Audio',
-            'NTODAY Audio Bulletins: Hands-free news stream starting.'
+            isTelugu
+              ? 'NTODAY Audio Bulletins: నిరంతర వార్తా ప్రసారం ప్రారంభమైంది.'
+              : 'NTODAY Audio Bulletins: Hands-free news stream starting.'
           );
         }}>
         <View style={styles.audioBannerLeft}>
@@ -71,8 +89,8 @@ export function ExploreView({ onStorySelect, onOpenAccount }: ExploreViewProps) 
             <Ionicons name="headset" size={20} color="#FFFFFF" />
           </View>
           <View style={styles.audioBannerTextContainer}>
-            <Text style={styles.audioBannerTitle}>Listen to the news</Text>
-            <Text style={styles.audioBannerSubtitle}>Hands-free, one story after another</Text>
+            <Text style={styles.audioBannerTitle}>{t.listenToNewsTitle}</Text>
+            <Text style={styles.audioBannerSubtitle}>{t.listenToNewsSubtitle}</Text>
           </View>
         </View>
         <Ionicons
@@ -85,59 +103,67 @@ export function ExploreView({ onStorySelect, onOpenAccount }: ExploreViewProps) 
 
       {/* 3. TOP NOW SECTION */}
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Top now</Text>
-        <Text style={styles.sectionSubtitle}>What readers are opening right now</Text>
+        <Text style={styles.sectionTitle}>{t.topNowTitle}</Text>
+        <Text style={styles.sectionSubtitle}>{t.topNowSubtitle}</Text>
       </View>
 
       <View style={styles.topNowList}>
-        {filteredStories.map((story) => (
-          <TouchableOpacity
-            key={story.rank}
-            style={styles.topNowItem}
-            activeOpacity={0.7}
-            onPress={() => onStorySelect(story)}>
-            {/* Rank Number */}
-            <Text style={[styles.rankNumber, story.rank === 1 && styles.rankNumberFirst]}>
-              {story.rank}
-            </Text>
+        {filteredStories.map((story) => {
+          const displayTitle = !isTelugu && story.title_en ? story.title_en : story.title;
+          const displayExcerpt = !isTelugu && story.excerpt_en ? story.excerpt_en : story.excerpt;
 
-            {/* Story Details */}
-            <View style={styles.storyDetails}>
-              <Text style={styles.storyTitle} numberOfLines={2}>
-                {story.title}
+          return (
+            <TouchableOpacity
+              key={story.rank}
+              style={styles.topNowItem}
+              activeOpacity={0.7}
+              onPress={() => onStorySelect(story)}>
+              {/* Rank Number */}
+              <Text style={[styles.rankNumber, story.rank === 1 && styles.rankNumberFirst]}>
+                {story.rank}
               </Text>
-              <Text style={styles.storyExcerpt} numberOfLines={2}>
-                {story.excerpt}
-              </Text>
-            </View>
 
-            {/* Thumbnail Image */}
-            <Image source={{ uri: story.imageUrl }} style={styles.storyThumbnail} resizeMode="cover" />
-          </TouchableOpacity>
-        ))}
+              {/* Story Details */}
+              <View style={styles.storyDetails}>
+                <Text style={styles.storyTitle} numberOfLines={2}>
+                  {displayTitle}
+                </Text>
+                <Text style={styles.storyExcerpt} numberOfLines={2}>
+                  {displayExcerpt}
+                </Text>
+              </View>
+
+              {/* Thumbnail Image */}
+              <Image source={{ uri: story.imageUrl }} style={styles.storyThumbnail} resizeMode="cover" />
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* 4. PLAYLISTS SECTION */}
       <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-        <Text style={styles.sectionTitle}>Playlists</Text>
-        <Text style={styles.sectionSubtitle}>Plays on, one story after another</Text>
+        <Text style={styles.sectionTitle}>{t.playlistsTitle}</Text>
+        <Text style={styles.sectionSubtitle}>{t.playlistsSubtitle}</Text>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.playlistScroll}>
-        {PLAYLIST_STORIES.map((playlist) => (
-          <TouchableOpacity
-            key={playlist.id}
-            style={styles.playlistCard}
-            activeOpacity={0.8}
-            onPress={() => Alert.alert('Playlist', `Playing ${playlist.title}`)}>
-            <View style={styles.playlistImageWrapper}>
-              <Image source={{ uri: playlist.imageUrl }} style={styles.playlistImage} resizeMode="cover" />
-              <View style={styles.playlistHeadphoneBadge}>
-                <Ionicons name="headset" size={14} color="#FFFFFF" />
+        {PLAYLIST_STORIES.map((playlist) => {
+          const displayTitle = !isTelugu && playlist.title_en ? playlist.title_en : playlist.title;
+          return (
+            <TouchableOpacity
+              key={playlist.id}
+              style={styles.playlistCard}
+              activeOpacity={0.8}
+              onPress={() => Alert.alert('Playlist', `Playing ${displayTitle}`)}>
+              <View style={styles.playlistImageWrapper}>
+                <Image source={{ uri: playlist.imageUrl }} style={styles.playlistImage} resizeMode="cover" />
+                <View style={styles.playlistHeadphoneBadge}>
+                  <Ionicons name="headset" size={14} color="#FFFFFF" />
+                </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        ))}
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
     </ScrollView>
   );

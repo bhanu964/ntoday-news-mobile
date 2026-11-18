@@ -21,11 +21,16 @@ export interface NewsArticle {
   sourceCredit?: string;
   timeAgo: string;
   title: string;
+  title_en?: string;
+  summary?: string;
+  summary_en?: string;
   content: string;
+  content_en?: string;
   mediaType: MediaType;
   imageUrl: string;
   videoUrl?: string;
   category: string;
+  category_id?: string;
   likesCount: number;
   commentsCount: number;
   audioDurationSeconds: number;
@@ -33,13 +38,19 @@ export interface NewsArticle {
   isLiked?: boolean;
   isDisliked?: boolean;
   isRead?: boolean;
+  isBreaking?: boolean;
+  publishedAt?: string;
+  status?: 'draft' | 'published' | 'archived';
   comments: NewsComment[];
 }
 
 export interface TopStory {
   rank: number;
+  id?: string;
   title: string;
+  title_en?: string;
   excerpt: string;
+  excerpt_en?: string;
   imageUrl: string;
   timeAgo: string;
   category: string;
@@ -49,6 +60,7 @@ export interface TopStory {
 export interface PlaylistStory {
   id: string;
   title: string;
+  title_en?: string;
   duration: string;
   imageUrl: string;
 }
@@ -59,4 +71,13 @@ export interface FeedbackSubmission {
   message: string;
   contact?: string;
   submittedAt: string;
+}
+
+export interface NewsCategory {
+  id: string;
+  name: string;
+  name_en: string;
+  slug: string;
+  icon?: string;
+  sort_order?: number;
 }

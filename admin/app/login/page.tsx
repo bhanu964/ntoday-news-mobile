@@ -17,33 +17,51 @@ export default function LoginPage() {
     setLoading(true);
 
     if (!isConfigured || !supabase) {
-      // Offline / Demo mode bypass
-      localStorage.setItem('ntoday_editor_session', 'demo-session');
-      router.push('/');
+      setErrorMsg('Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in admin/.env.local.');
+      setLoading(false);
       return;
     }
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password.trim(),
       });
 
       if (error) {
         setErrorMsg(error.message);
-      } else {
-        router.push('/');
+        setLoading(false);
+        return;
       }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Login failed');
+
+      if (!data.user) {
+        setErrorMsg('Authentication failed. No user record returned.');
+        setLoading(false);
+        return;
+      }
+
+      // Verify the user is registered in the editors table
+      const { data: editorData, error: editorError } = await supabase
+        .from('editors')
+        .select('*')
+        .eq('id', data.user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (editorError || !editorData) {
+        await supabase.auth.signOut();
+        setErrorMsg('Access Denied: Your account is authenticated, but is not registered as an active editor in the database.');
+        setLoading(false);
+        return;
+      }
+
+      router.push('/');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Login failed';
+      setErrorMsg(message);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDemoAccess = () => {
-    localStorage.setItem('ntoday_editor_session', 'demo-editor');
-    router.push('/');
   };
 
   return (
@@ -95,6 +113,7 @@ export default function LoginPage() {
               padding: 10,
               fontSize: 13,
               marginBottom: 16,
+              lineHeight: 1.4,
             }}>
             {errorMsg}
           </div>
@@ -169,27 +188,6 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign In as Editor'}
           </button>
         </form>
-
-        <div
-          style={{
-            marginTop: 20,
-            paddingTop: 16,
-            borderTop: '1px solid #27272a',
-            textAlign: 'center',
-          }}>
-          <button
-            onClick={handleDemoAccess}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#a1a1aa',
-              fontSize: 12,
-              textDecoration: 'underline',
-              cursor: 'pointer',
-            }}>
-            Skip to Dashboard (Demo / Preview Mode)
-          </button>
-        </div>
       </div>
     </div>
   );

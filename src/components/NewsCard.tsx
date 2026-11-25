@@ -4,17 +4,101 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   Image,
   Share,
   Linking,
   Alert,
   Platform,
+  Modal,
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NewsArticle, NewsComment } from '@/types/news';
+import { APP_CONFIG } from '@/config/appConfig';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MediaViewer } from './MediaViewer';
 import { CommentsModal } from './CommentsModal';
+
+export interface TemplateMetrics {
+  photoRatio: number;
+  photoHeight: number;
+  headlineFontSize: number;
+  headlineLineHeight: number;
+  headlineBlockHeight: number;
+  bodyFontSize: number;
+  bodyLineHeight: number;
+  bodyBlockHeight: number;
+  photoTop: number;
+  photoBottom: number;
+  headlineStart: number;
+  headlineEnd: number;
+  bodyStart: number;
+  bodyEnd: number;
+  metaRowTop: number;
+  metaRowBottom: number;
+  actionBarTop: number;
+  actionBarBottom: number;
+  safetyGap: number;
+}
+
+/**
+ * FIXED TEMPLATE ENGINE:
+ * Calculates all layout blocks once per device screen from measured PAGE_HEIGHT.
+ * Every card on that device receives the EXACT same pixel positions.
+ */
+export function computeCardTemplate(pageHeight: number): TemplateMetrics {
+  const isShortScreen = pageHeight < 660;
+  const photoRatio = isShortScreen ? 0.33 : 0.40;
+  const headlineFontSize = isShortScreen ? 18 : 19.5;
+  const headlineLineHeight = isShortScreen ? 25 : 28;
+  const bodyFontSize = isShortScreen ? 14.5 : 16;
+  const bodyLineHeight = isShortScreen ? 22 : 25;
+
+  const topPadding = 10;      // 10px under photo
+  const headlineGap = 6;      // 6px between headline and body
+  const metaHeight = 32;      // meta row
+  const actionHeight = 56;    // action bar
+
+  const photoHeight = Math.round(pageHeight * photoRatio);
+  const headlineBlockHeight = 2 * headlineLineHeight;
+  const bodyBlockHeight = 10 * bodyLineHeight;
+
+  const photoTop = 0;
+  const photoBottom = photoHeight;
+  const headlineStart = photoHeight + topPadding;
+  const headlineEnd = headlineStart + headlineBlockHeight;
+  const bodyStart = headlineEnd + headlineGap;
+  const bodyEnd = bodyStart + bodyBlockHeight;
+  const metaRowTop = pageHeight - 88;
+  const metaRowBottom = pageHeight - 56;
+  const actionBarTop = pageHeight - 56;
+  const actionBarBottom = pageHeight;
+  const safetyGap = metaRowTop - bodyEnd;
+
+  return {
+    photoRatio,
+    photoHeight,
+    headlineFontSize,
+    headlineLineHeight,
+    headlineBlockHeight,
+    bodyFontSize,
+    bodyLineHeight,
+    bodyBlockHeight,
+    photoTop,
+    photoBottom,
+    headlineStart,
+    headlineEnd,
+    bodyStart,
+    bodyEnd,
+    metaRowTop,
+    metaRowBottom,
+    actionBarTop,
+    actionBarBottom,
+    safetyGap,
+  };
+}
 
 interface NewsCardProps {
   article: NewsArticle;
@@ -27,6 +111,7 @@ interface NewsCardProps {
   onBookmarkChange?: (id: string, isBookmarked: boolean) => void;
   onAddComment?: (articleId: string, comment: NewsComment) => void;
   onToggleLike?: (articleId: string, currentLikes: number) => Promise<{ newCount: number; isLiked: boolean } | void>;
+  onCardPress?: () => void;
 }
 
 export function NewsCard({
@@ -40,12 +125,28 @@ export function NewsCard({
   onBookmarkChange,
   onAddComment,
   onToggleLike,
+  onCardPress,
 }: NewsCardProps) {
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === 'dark' ? Colors.dark : Colors.light;
+
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const effectiveWidth = cardWidth || (Platform.OS === 'web' ? Math.min(windowWidth, 480) : windowWidth);
-  const effectiveHeight = cardHeight || windowHeight - 110;
-  // Instagram reels-style media height: about 42% of the card height
-  const mediaHeight = Math.max(Math.min(effectiveHeight * 0.43, 340), 220);
+  // On home/feed the BottomNavBar is hidden, so the container fills the full available area.
+  // cardHeight is the measured containerHeight passed from index.tsx; use it directly.
+  const effectiveHeight = cardHeight || (windowHeight > 0 ? windowHeight - 56 : 700);
+
+  // Compute fixed template metrics once from effectiveHeight (identical across ALL cards on this device)
+  const template = computeCardTemplate(effectiveHeight);
+  const {
+    photoHeight,
+    headlineFontSize,
+    headlineLineHeight,
+    headlineBlockHeight,
+    bodyFontSize,
+    bodyLineHeight,
+    bodyBlockHeight,
+  } = template;
 
   const [likes, setLikes] = useState(article.likesCount);
   const [hasLiked, setHasLiked] = useState(article.isLiked ?? false);
@@ -54,6 +155,7 @@ export function NewsCard({
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(article.audioDurationSeconds);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [comments, setComments] = useState<NewsComment[]>(article.comments || []);
 
   // Sync state when article prop changes
@@ -68,7 +170,18 @@ export function NewsCard({
 
   // Dynamic bilingual text
   const displayTitle = !isTelugu && article.title_en ? article.title_en : article.title;
-  const displayContent = !isTelugu && article.content_en ? article.content_en : article.content;
+  // Use summary for the card body (up to 10 lines), fallback to content
+  const displayBody = !isTelugu
+    ? (article.summary_en || article.summary || article.content_en || article.content)
+    : (article.summary || article.content);
+
+  // Check if article is from an external source to display in meta row
+  const sourceName = article.sourceName || article.sourceCredit || '';
+  const isExternalSource = Boolean(
+    sourceName &&
+    !sourceName.toLowerCase().includes('ntoday') &&
+    sourceName.trim().length > 0
+  );
 
   // Audio countdown simulation
   useEffect(() => {
@@ -131,6 +244,7 @@ export function NewsCard({
     const nextState = !isBookmarked;
     setIsBookmarked(nextState);
     onBookmarkChange?.(article.id, nextState);
+    setShowMoreMenu(false);
     Alert.alert(
       nextState
         ? (isTelugu ? 'బుక్‌మార్క్‌లలో సేవ్ చేయబడింది' : 'Saved to Bookmarks')
@@ -138,22 +252,32 @@ export function NewsCard({
     );
   };
 
+  const getShareUrl = () => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
+      return `${window.location.origin}/news/${article.id}`;
+    }
+    return `${APP_CONFIG.webBaseUrl}/news/${article.id}`;
+  };
+
   const handleShare = async () => {
     try {
+      const shareUrl = getShareUrl();
       const prompt = isTelugu ? 'పూర్తి వివరాలు NTODAY NEWS లో చదవండి:' : 'Read full story on NTODAY NEWS:';
       await Share.share({
-        message: `${displayTitle}\n\n${prompt}\nhttps://ntodaynews.com/`,
+        message: `${displayTitle}\n\n${prompt}\n${shareUrl}`,
+        url: shareUrl,
         title: displayTitle,
       });
-    } catch (err) {
+    } catch {
       // ignore
     }
   };
 
   const handleWhatsAppShare = () => {
+    const shareUrl = getShareUrl();
     const prompt = isTelugu ? '👉 పూర్తి వార్త కోసం NTODAY NEWS చూడండి:' : '👉 Read full story on NTODAY NEWS:';
     const text = encodeURIComponent(
-      `*${displayTitle}*\n\n${displayContent.substring(0, 160)}...\n\n${prompt} https://ntodaynews.com/`
+      `*${displayTitle}*\n\n${displayBody.substring(0, 160)}...\n\n${prompt}\n${shareUrl}`
     );
     Linking.openURL(`whatsapp://send?text=${text}`).catch(() => {
       handleShare();
@@ -162,6 +286,7 @@ export function NewsCard({
 
   const toggleAudio = () => {
     setIsPlayingAudio(!isPlayingAudio);
+    setShowMoreMenu(false);
   };
 
   const handleAddNewComment = (newComment: NewsComment) => {
@@ -170,101 +295,240 @@ export function NewsCard({
     onAddComment?.(article.id, newComment);
   };
 
+  // Format publication time: "8:01 AM" for today, "7d ago" for older
+  const formatMetaTime = (publishedAt?: string, fallbackTimeAgo?: string): string => {
+    if (!publishedAt) return fallbackTimeAgo || '8:01 AM';
+    try {
+      const pubDate = new Date(publishedAt);
+      const now = new Date();
+      const isToday =
+        pubDate.getDate() === now.getDate() &&
+        pubDate.getMonth() === now.getMonth() &&
+        pubDate.getFullYear() === now.getFullYear();
+
+      if (isToday) {
+        return pubDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+      }
+      return fallbackTimeAgo || '7d ago';
+    } catch {
+      return fallbackTimeAgo || '8:01 AM';
+    }
+  };
+
+  const formatCount = (count: number): string => {
+    if (count >= 1000) {
+      return (count / 1000).toFixed(1) + ' k';
+    }
+    return String(count);
+  };
+
+  const reporterName = article.authorName || article.authorDesk || 'Desk Reporter';
+
   return (
-    <View style={[styles.cardContainer, { height: effectiveHeight, width: effectiveWidth }]}>
-      {/* 1. UPPER SECTION: DYNAMIC PHOTO OR VIDEO WITH CURVED BORDERS */}
-      <View style={styles.mediaContainer}>
-        <MediaViewer
-          article={article}
-          currentIndex={currentIndex}
-          totalCards={totalCards}
-          height={mediaHeight}
-          isBookmarked={isBookmarked}
-          onToggleBookmark={handleToggleBookmark}
-          isActive={isActive}
-        />
-      </View>
-
-      {/* 2. RED SOURCE ATTRIBUTION STRIP */}
-      <View style={styles.redStrip}>
-        <View style={styles.redStripLeft}>
-          <Image
-            source={require('../../assets/images/ntoday-official-logo.png')}
-            style={styles.sourceLogo}
-            resizeMode="contain"
+    <View
+      style={[
+        styles.cardContainer,
+        {
+          height: effectiveHeight,
+          width: effectiveWidth,
+          backgroundColor: theme.cardBackground,
+        },
+      ]}>
+      {/* Interactive Card Body: Tap anywhere on photo, text, or meta to toggle header */}
+      <Pressable
+        onPress={onCardPress}
+        style={[styles.cardInteractiveBody, { height: effectiveHeight - 56 }]}>
+        {/* 1. UPPER SECTION: FIXED PHOTO/VIDEO (Exact height = photoHeight, full width, cover) */}
+        <View
+          style={[
+            styles.mediaContainer,
+            {
+              height: photoHeight,
+            },
+          ]}>
+          <MediaViewer
+            article={article}
+            height={photoHeight}
+            isActive={isActive}
           />
-          <Text style={styles.brandTitle}>{article.sourceName}</Text>
+          {/* Reporter name badge attached to bottom-left of photo with NO gap, like way2news */}
+          <View style={styles.photoReporterBadge}>
+            <Image
+              source={require('../../assets/images/ntoday-official-logo.png')}
+              style={styles.photoReporterLogo}
+              resizeMode="contain"
+            />
+            <Text style={styles.photoReporterText} numberOfLines={1}>
+              {reporterName}
+            </Text>
+          </View>
         </View>
-        <View style={styles.redStripRight}>
-          {article.sourceCredit ? (
-            <Text style={styles.sourceCreditText}>{article.sourceCredit} • </Text>
-          ) : null}
-          <Text style={styles.timeAgoText}>{article.timeAgo}</Text>
-          <Ionicons name="share-outline" size={13} color="#FFFFFF" style={{ marginLeft: 5 }} />
+
+        {/* 2. TEXT AREA: HEADLINE (MAX 2 LINES) + BODY (UP TO 10 LINES) */}
+        <View style={styles.contentContainer}>
+          {/* Headline: natural height up to 2 lines; when 1 line, body starts directly below with no extra gap */}
+          <Text
+            style={[
+              styles.headlineText,
+              {
+                color: theme.text,
+                fontSize: headlineFontSize,
+                lineHeight: headlineLineHeight,
+              },
+            ]}
+            numberOfLines={2}>
+            {displayTitle}
+          </Text>
+
+          {/* Body Text: starts on the same left alignment directly under headline, up to 10 lines */}
+          <Text
+            style={[
+              styles.bodyText,
+              {
+                color: theme.textSecondary,
+                fontSize: bodyFontSize,
+                lineHeight: bodyLineHeight,
+              },
+            ]}
+            numberOfLines={10}>
+            {displayBody}
+          </Text>
+        </View>
+
+        {/* 3. META ROW: Fixed height 32, pinned just above action bar at bottom: 0 of interactive body */}
+        <View style={styles.metaRow}>
+          <View style={styles.metaLeft}>
+            <Ionicons name="time-outline" size={13} color={theme.textMuted} />
+            <Text style={[styles.metaTimeText, { color: theme.textMuted }]}>
+              {formatMetaTime(article.publishedAt, article.timeAgo)}
+              {isExternalSource ? ` · ${sourceName}` : ''}
+            </Text>
+          </View>
+          <Text style={[styles.metaPagesText, { color: theme.textMuted }]}>
+            {currentIndex} of {totalCards} {isTelugu ? 'Pages' : 'Pages'}
+          </Text>
+        </View>
+      </Pressable>
+
+      {/* 5. FIXED ACTION BAR (Fixed at bottom of card, white/theme surface, thin top border) */}
+      <View
+        style={[
+          styles.actionToolbar,
+          {
+            backgroundColor: theme.cardBackground,
+            borderTopColor: theme.border,
+          },
+        ]}>
+        {/* Left Group: Thumbs Up & Thumbs Down with Counts */}
+        <View style={styles.leftActionGroup}>
+          {/* Like */}
+          <TouchableOpacity style={styles.actionItemRow} onPress={handleLike} activeOpacity={0.7}>
+            <Ionicons
+              name={hasLiked ? 'thumbs-up' : 'thumbs-up-outline'}
+              size={19}
+              color={hasLiked ? theme.brandRedBright : theme.iconColor}
+            />
+            <Text style={[styles.actionCountText, { color: hasLiked ? theme.brandRedBright : theme.iconColor }]}>
+              {formatCount(likes)}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Dislike */}
+          <TouchableOpacity style={styles.actionItemRow} onPress={handleDislike} activeOpacity={0.7}>
+            <Ionicons
+              name={hasDisliked ? 'thumbs-down' : 'thumbs-down-outline'}
+              size={19}
+              color={hasDisliked ? theme.brandRedBright : theme.iconColor}
+            />
+            <Text style={[styles.actionCountText, { color: hasDisliked ? theme.brandRedBright : theme.iconColor }]}>
+              {hasDisliked ? '1' : '39'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Center: Raised Round Green WhatsApp Share Button (52px) */}
+        <View style={styles.centerWhatsAppContainer}>
+          <TouchableOpacity
+            style={styles.whatsAppCircleBtn}
+            onPress={handleWhatsAppShare}
+            activeOpacity={0.85}>
+            <Ionicons name="logo-whatsapp" size={30} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.whatsAppLabel}>SHARE</Text>
+        </View>
+
+        {/* Right Group: Comment count, Three-dot menu, Blue share arrow */}
+        <View style={styles.rightActionGroup}>
+          {/* Comment with count */}
+          <TouchableOpacity style={styles.actionItemRow} onPress={() => setShowCommentsModal(true)} activeOpacity={0.7}>
+            <Ionicons name="chatbubble-outline" size={19} color={theme.iconColor} />
+            <Text style={[styles.actionCountText, { color: theme.iconColor }]}>
+              {comments.length}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Three-dot menu */}
+          <TouchableOpacity style={styles.iconBtn} onPress={() => setShowMoreMenu(true)} activeOpacity={0.7}>
+            <Ionicons name="ellipsis-vertical" size={20} color={theme.iconColor} />
+          </TouchableOpacity>
+
+          {/* Blue Share Arrow */}
+          <TouchableOpacity style={styles.iconBtn} onPress={handleShare} activeOpacity={0.7}>
+            <Ionicons name="arrow-redo" size={21} color={theme.shareBlue} />
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* 3. NEWS BODY: TELUGU / ENGLISH HEADLINE & CONTENT */}
-      <View style={styles.contentContainer}>
-        <Text style={styles.headlineText} numberOfLines={3}>
-          {displayTitle}
-        </Text>
-        <Text style={styles.bodyText}>
-          {displayContent}
-        </Text>
-      </View>
-
-      {/* 4. BOTTOM ACTION TOOLBAR */}
-      <View style={styles.actionToolbar}>
-        {/* Share Button */}
-        <TouchableOpacity style={styles.actionItem} onPress={handleShare}>
-          <Ionicons name="share-social-outline" size={24} color="#A1A1AA" />
-        </TouchableOpacity>
-
-        {/* Comment Button with Counter */}
-        <TouchableOpacity style={styles.actionItem} onPress={() => setShowCommentsModal(true)}>
-          <Ionicons name="chatbubble-outline" size={22} color="#A1A1AA" />
-          <Text style={styles.actionCount}>{comments.length}</Text>
-        </TouchableOpacity>
-
-        {/* Like Button */}
-        <TouchableOpacity style={styles.actionItem} onPress={handleLike}>
-          <Ionicons
-            name={hasLiked ? 'thumbs-up' : 'thumbs-up-outline'}
-            size={22}
-            color={hasLiked ? '#E50914' : '#A1A1AA'}
-          />
-          <Text style={[styles.actionCount, hasLiked && { color: '#E50914' }]}>{likes}</Text>
-        </TouchableOpacity>
-
-        {/* Dislike Button */}
-        <TouchableOpacity style={styles.actionItem} onPress={handleDislike}>
-          <Ionicons
-            name={hasDisliked ? 'thumbs-down' : 'thumbs-down-outline'}
-            size={22}
-            color={hasDisliked ? '#E50914' : '#A1A1AA'}
-          />
-        </TouchableOpacity>
-
-        {/* WhatsApp Share Button */}
-        <TouchableOpacity style={styles.actionItem} onPress={handleWhatsAppShare}>
-          <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
-        </TouchableOpacity>
-
-        {/* Listen Audio / TTS Countdown Button */}
+      {/* 5. THREE-DOT MORE MENU MODAL */}
+      <Modal
+        visible={showMoreMenu}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowMoreMenu(false)}>
         <TouchableOpacity
-          style={[styles.audioButton, isPlayingAudio && styles.audioButtonActive]}
-          onPress={toggleAudio}>
-          <Ionicons
-            name={isPlayingAudio ? 'pause' : 'volume-high'}
-            size={20}
-            color="#EF4444"
-          />
-          <Text style={styles.audioDurationText}>{secondsLeft}s</Text>
-        </TouchableOpacity>
-      </View>
+          style={styles.moreMenuBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowMoreMenu(false)}>
+          <View style={[styles.moreMenuSheet, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+            {/* Bookmark option */}
+            <TouchableOpacity style={styles.moreMenuItem} onPress={handleToggleBookmark}>
+              <Ionicons
+                name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
+                size={20}
+                color={isBookmarked ? theme.brandRedBright : theme.text}
+              />
+              <Text style={[styles.moreMenuText, { color: isBookmarked ? theme.brandRedBright : theme.text }]}>
+                {isBookmarked
+                  ? (isTelugu ? 'బుక్‌మార్క్ తొలగించండి' : 'Remove Bookmark')
+                  : (isTelugu ? 'బుక్‌మార్క్ చేయండి' : 'Bookmark Story')}
+              </Text>
+            </TouchableOpacity>
 
-      {/* Comments Bottom Sheet */}
+            {/* Audio TTS option */}
+            <TouchableOpacity style={styles.moreMenuItem} onPress={toggleAudio}>
+              <Ionicons
+                name={isPlayingAudio ? 'pause-circle' : 'volume-high-outline'}
+                size={20}
+                color={isPlayingAudio ? theme.brandRedBright : theme.text}
+              />
+              <Text style={[styles.moreMenuText, { color: isPlayingAudio ? theme.brandRedBright : theme.text }]}>
+                {isPlayingAudio
+                  ? (isTelugu ? `ఆడియో ఆపండి (${secondsLeft}s)` : `Pause Audio (${secondsLeft}s)`)
+                  : (isTelugu ? 'వార్తను వినండి (Audio)' : 'Listen to News (Audio)')}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Close button */}
+            <TouchableOpacity style={styles.moreMenuCancel} onPress={() => setShowMoreMenu(false)}>
+              <Text style={[styles.moreMenuCancelText, { color: theme.textMuted }]}>
+                {isTelugu ? 'రద్దు' : 'Close'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* 6. COMMENTS BOTTOM SHEET */}
       <CommentsModal
         visible={showCommentsModal}
         articleId={article.id}
@@ -280,108 +544,198 @@ export function NewsCard({
 
 const styles = StyleSheet.create({
   cardContainer: {
-    backgroundColor: '#121214',
-    justifyContent: 'space-between',
     overflow: 'hidden',
+    position: 'relative',
   },
+  cardInteractiveBody: {
+    width: '100%',
+    position: 'relative',
+  },
+  // Full-width edge-to-edge media container with exact fixed height
   mediaContainer: {
-    paddingHorizontal: 8,
-    paddingTop: 6,
+    width: '100%',
+    padding: 0,
+    margin: 0,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  redStrip: {
-    backgroundColor: '#BA1A1A',
+  // Reporter name badge attached to bottom-left of photo with NO gap, like way2news
+  photoReporterBadge: {
+    position: 'absolute',
+    bottom: 0,
+    left: 4,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    marginTop: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 7,
+    paddingVertical: 3.5,
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    gap: 5,
+    zIndex: 10,
+    maxWidth: 180,
   },
-  redStripLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  photoReporterLogo: {
+    width: 13,
+    height: 13,
   },
-  sourceLogo: {
-    width: 25,
-    height: 15,
-    marginRight: 6,
-    borderRadius: 2,
-  },
-  brandTitle: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  redStripRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sourceCreditText: {
-    color: '#F4F4F5',
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  timeAgoText: {
+  photoReporterText: {
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
-  },
-  contentContainer: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 6,
-    justifyContent: 'center',
-  },
-  headlineText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
-    lineHeight: 28,
-    marginBottom: 8,
-  },
-  bodyText: {
-    color: '#E4E4E7',
-    fontSize: 14,
-    lineHeight: 22,
     letterSpacing: 0.2,
   },
-  actionToolbar: {
+  // Text area starts about 10px below photo, aligned on the left
+  contentContainer: {
+    paddingLeft: 12,
+    paddingRight: 14,
+    paddingTop: 10,
+    justifyContent: 'flex-start',
+    overflow: 'hidden',
+  },
+  headlineText: {
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  bodyText: {
+    fontWeight: '400',
+  },
+  // Meta Row just above action bar (pinned at bottom: 0 of interactive body, height: 32)
+  metaRow: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 32,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#27272a',
-    backgroundColor: '#121214',
+    justifyContent: 'space-between',
+    paddingLeft: 12,
+    paddingRight: 14,
+    zIndex: 5,
   },
-  actionItem: {
+  metaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  metaTimeText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  metaPagesText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  // Fixed Action Bar (pinned at bottom: 0 of card, height: 56)
+  actionToolbar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 12,
+    paddingRight: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    zIndex: 10,
+  },
+  leftActionGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  rightActionGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  actionItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    minHeight: 36,
+  },
+  actionCountText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  iconBtn: {
+    padding: 4,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 44,
   },
-  actionCount: {
-    color: '#A1A1AA',
-    fontSize: 10,
-    fontWeight: '700',
+  // Raised WhatsApp Button in the center
+  centerWhatsAppContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -22,
+    zIndex: 20,
+  },
+  whatsAppCircleBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#25D366',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#25D366',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 5,
+  },
+  whatsAppLabel: {
+    color: '#6B7280',
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 0.4,
     marginTop: 2,
   },
-  audioButton: {
+  // Three-dot popup sheet
+  moreMenuBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingBottom: 70,
   },
-  audioButtonActive: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderRadius: 8,
+  moreMenuSheet: {
+    width: '90%',
+    maxWidth: 380,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
-  audioDurationText: {
-    color: '#EF4444',
-    fontSize: 10,
-    fontWeight: '800',
-    marginTop: 1,
+  moreMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(128, 128, 128, 0.2)',
+  },
+  moreMenuText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  moreMenuCancel: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  moreMenuCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

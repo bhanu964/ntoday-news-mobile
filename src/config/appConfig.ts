@@ -8,6 +8,10 @@ export const APP_CONFIG = {
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || '',
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || '',
 
+  // Public web base URL for sharing and deep links
+  webBaseUrl: process.env.EXPO_PUBLIC_WEB_URL?.trim() || 'https://ntoday-news-mobile.vercel.app',
+  deepLinkScheme: 'ntoday',
+
   // Pagination defaults
   articlesPerPage: 10,
 

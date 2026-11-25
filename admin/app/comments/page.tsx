@@ -4,53 +4,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase, isConfigured } from '@/lib/supabase';
 import { Comment } from '@/lib/types';
 
-const INITIAL_COMMENTS: Comment[] = [
-  {
-    id: 'c-1',
-    article_id: 'news-1',
-    user_name: 'రామారావు',
-    content: 'కూటమికి మంచి విజయం దక్కింది. ప్రభుత్వ వ్యతిరేకత స్పష్టంగా కనిపిస్తోంది.',
-    likes_count: 4,
-    status: 'approved',
-    created_at: new Date(Date.now() - 5 * 60000).toISOString(),
-    articles: {
-      title: 'కర్ణాటక MLC ఎన్నికల్లో NDA గెలుపు',
-    },
-  },
-  {
-    id: 'c-3',
-    article_id: 'news-2',
-    user_name: 'వినోద్',
-    content: 'ఇలాంటి ఫేక్ విదేశీ జాబ్ స్కామ్‌లపై యువత అప్రమత్తంగా ఉండాలి.',
-    likes_count: 3,
-    status: 'approved',
-    created_at: new Date(Date.now() - 10 * 60000).toISOString(),
-    articles: {
-      title: 'ఉద్యోగం కోసం వెళ్లి.. ఆచూకీ లేకుండా!',
-    },
-  },
-  {
-    id: 'c-4',
-    article_id: 'news-3',
-    user_name: 'ఆనంద్ విశాఖ',
-    content: 'మా ఏరియాలో కరెంట్ పోయింది, గాలులు చాలా తీవ్రంగా ఉన్నాయి.',
-    likes_count: 5,
-    status: 'approved',
-    created_at: new Date(Date.now() - 15 * 60000).toISOString(),
-    articles: {
-      title: 'తీరం దాటిన రెండో తుఫాను.. విశాఖపై తీవ్ర ప్రభావం!',
-    },
-  },
-];
-
 export default function CommentsModerationPage() {
-  const [comments, setComments] = useState<Comment[]>(INITIAL_COMMENTS);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [filter, setFilter] = useState<'all' | 'approved' | 'pending' | 'rejected'>('all');
   const [loading, setLoading] = useState(false);
 
   const loadComments = useCallback(async () => {
     if (!isConfigured || !supabase) {
-      setComments(INITIAL_COMMENTS);
+      setComments([]);
       return;
     }
 
@@ -73,12 +34,12 @@ export default function CommentsModerationPage() {
         .order('created_at', { ascending: false });
 
       if (error || !data) {
-        setComments(INITIAL_COMMENTS);
+        setComments([]);
       } else {
         setComments(data as unknown as Comment[]);
       }
     } catch {
-      setComments(INITIAL_COMMENTS);
+      setComments([]);
     } finally {
       setLoading(false);
     }

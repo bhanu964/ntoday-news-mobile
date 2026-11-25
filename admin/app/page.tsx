@@ -5,62 +5,16 @@ import Link from 'next/link';
 import { supabase, isConfigured, CHANNEL_ID } from '@/lib/supabase';
 import { Article } from '@/lib/types';
 
-// Fallback seed data if running prior to Supabase connection
-const FALLBACK_ARTICLES: Article[] = [
-  {
-    id: 'news-1',
-    channel_id: 'ntoday-news',
-    category_id: 'cat-politics',
-    title: 'కర్ణాటక MLC ఎన్నికల్లో NDA గెలుపు',
-    title_en: 'NDA Wins 3 of 4 Seats in Karnataka Legislative Council By-polls',
-    summary: 'కర్ణాటక శాసనమండలి ఎన్నికల్లో BJP-JDS కూటమి ఘన విజయం సాధించింది.',
-    summary_en: 'BJP-JDS alliance records massive victory in Karnataka MLC teacher & graduate seats.',
-    content: 'కర్ణాటక శాసనమండలిలోని నాలుగు ఉపాధ్యాయ పట్టభద్రుల స్థానాల్లో BJP-JDS కూటమి గెలిచింది...',
-    content_en: 'The BJP-JDS National Democratic Alliance secured a commanding victory...',
-    image_url: 'https://images.unsplash.com/photo-1540910419892-4a36d2c3266c?auto=format&fit=crop&w=600&q=80',
-    video_url: null,
-    source: 'NTODAY NEWS',
-    author: 'Prashanth (DESK)',
-    status: 'published',
-    is_breaking: false,
-    like_count: 2,
-    comment_count: 2,
-    published_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'news-3',
-    channel_id: 'ntoday-news',
-    category_id: 'cat-weather',
-    title: 'తీరం దాటిన రెండో తుఫాను.. విశాఖపై తీవ్ర ప్రభావం!',
-    title_en: 'Cyclone Crosses Coast: High Winds and Heavy Rain Batter Coastal Andhra',
-    summary: 'ఉత్తరాంధ్ర తీరంలో భారీ వర్షాలు, మత్స్యకారులను అప్రమత్తం చేసిన వాతావరణ శాఖ.',
-    summary_en: 'Severe cyclonic storm lashes coastal districts with gale winds up to 80 kmph.',
-    content: 'అరేబియా సముద్రంలో అతి తీవ్ర తుఫానుకి దగ్గర్లోనే కదులుతున్న మరో తుఫాను ప్రభావంతో...',
-    content_en: 'A cyclonic storm made landfall along the North Andhra coastline...',
-    image_url: 'https://images.unsplash.com/photo-1527482797697-8795b05a13fe?auto=format&fit=crop&w=600&q=80',
-    video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    source: 'NTODAY NEWS',
-    author: 'Suresh (DESK)',
-    status: 'published',
-    is_breaking: true,
-    like_count: 9,
-    comment_count: 1,
-    published_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-  },
-];
-
 export default function ArticlesDashboard() {
-  const [articles, setArticles] = useState<Article[]>(FALLBACK_ARTICLES);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft' | 'breaking'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft' | 'imported' | 'breaking'>('all');
 
   const loadArticles = useCallback(async () => {
     setLoading(true);
     if (!isConfigured || !supabase) {
-      setArticles(FALLBACK_ARTICLES);
+      setArticles([]);
       setLoading(false);
       return;
     }
@@ -72,13 +26,13 @@ export default function ArticlesDashboard() {
         .eq('channel_id', CHANNEL_ID)
         .order('published_at', { ascending: false });
 
-      if (error || !data || data.length === 0) {
-        setArticles(FALLBACK_ARTICLES);
+      if (error || !data) {
+        setArticles([]);
       } else {
         setArticles(data as Article[]);
       }
     } catch {
-      setArticles(FALLBACK_ARTICLES);
+      setArticles([]);
     } finally {
       setLoading(false);
     }
@@ -102,6 +56,28 @@ export default function ArticlesDashboard() {
     }
   };
 
+  const publishArticle = async (id: string) => {
+    setArticles((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, status: 'published' } : a))
+    );
+
+    if (isConfigured && supabase) {
+      await supabase
+        .from('articles')
+        .update({ status: 'published' })
+        .eq('id', id);
+    }
+  };
+
+  const rejectArticle = async (id: string) => {
+    if (!confirm('Reject and delete this imported story?')) return;
+    setArticles((prev) => prev.filter((a) => a.id !== id));
+
+    if (isConfigured && supabase) {
+      await supabase.from('articles').delete().eq('id', id);
+    }
+  };
+
   const deleteArticle = async (id: string) => {
     if (!confirm('Are you sure you want to delete this story?')) return;
 
@@ -115,6 +91,10 @@ export default function ArticlesDashboard() {
   const filtered = articles.filter((a) => {
     if (filterStatus === 'published' && a.status !== 'published') return false;
     if (filterStatus === 'draft' && a.status !== 'draft') return false;
+    if (filterStatus === 'imported') {
+      const isImported = a.import_status === 'imported' || (a.status === 'draft' && !!a.source_url);
+      if (!isImported) return false;
+    }
     if (filterStatus === 'breaking' && !a.is_breaking) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -129,30 +109,6 @@ export default function ArticlesDashboard() {
 
   return (
     <div className="container">
-      {/* Supabase Notice Banner if not configured */}
-      {!isConfigured && (
-        <div
-          style={{
-            backgroundColor: '#1c1c20',
-            border: '1px solid #e50914',
-            borderRadius: 8,
-            padding: '12px 16px',
-            marginBottom: 24,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-          <div>
-            <strong style={{ color: '#ffffff' }}>Notice: Supabase keys not set in .env.local</strong>
-            <p style={{ color: '#a1a1aa', fontSize: 13, marginTop: 2 }}>
-              Currently demonstrating using local preview data. Paste your Supabase project keys in{' '}
-              <code>admin/.env.local</code> to sync live with your database.
-            </p>
-          </div>
-          <span className="badge badge-breaking">DEMO MODE</span>
-        </div>
-      )}
-
       {/* Header controls */}
       <div
         style={{
@@ -194,23 +150,28 @@ export default function ArticlesDashboard() {
       </div>
 
       {/* Filter Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        {(['all', 'published', 'draft', 'breaking'] as const).map((st) => (
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {[
+          { id: 'all', label: 'All Stories' },
+          { id: 'published', label: 'Published' },
+          { id: 'draft', label: 'Drafts' },
+          { id: 'imported', label: 'Imported / Draft' },
+          { id: 'breaking', label: 'Breaking' },
+        ].map((tab) => (
           <button
-            key={st}
-            onClick={() => setFilterStatus(st)}
+            key={tab.id}
+            onClick={() => setFilterStatus(tab.id as any)}
             style={{
               padding: '6px 14px',
               borderRadius: 20,
               fontSize: 12,
               fontWeight: 700,
               border: '1px solid #27272a',
-              backgroundColor: filterStatus === st ? '#ffffff' : '#141417',
-              color: filterStatus === st ? '#000000' : '#a1a1aa',
+              backgroundColor: filterStatus === tab.id ? '#ffffff' : '#141417',
+              color: filterStatus === tab.id ? '#000000' : '#a1a1aa',
               cursor: 'pointer',
-              textTransform: 'capitalize',
             }}>
-            {st}
+            {tab.label}
           </button>
         ))}
       </div>
@@ -265,14 +226,28 @@ export default function ArticlesDashboard() {
 
                   {/* Headline */}
                   <td style={{ padding: '12px 16px', maxWidth: 380 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
                       {item.is_breaking && <span className="badge badge-breaking">BREAKING</span>}
+                      {item.import_status === 'imported' && (
+                        <span className="badge" style={{ backgroundColor: '#7c3aed', color: '#ffffff' }}>
+                          IMPORTED
+                        </span>
+                      )}
                       {item.video_url && (
                         <span className="badge" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}>
                           VIDEO
                         </span>
                       )}
                       <span style={{ fontSize: 11, color: '#71717a' }}>{item.author}</span>
+                      {item.source_url && (
+                        <a
+                          href={item.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: 11, color: '#38bdf8', textDecoration: 'none' }}>
+                          ↗ Source
+                        </a>
+                      )}
                     </div>
                     <div style={{ fontWeight: 800, fontSize: 14, color: '#ffffff' }}>{item.title}</div>
                     {item.title_en && (
@@ -305,7 +280,39 @@ export default function ArticlesDashboard() {
 
                   {/* Actions */}
                   <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', gap: 8 }}>
+                    <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                      {item.status === 'draft' && (
+                        <button
+                          onClick={() => publishArticle(item.id)}
+                          style={{
+                            backgroundColor: '#16a34a',
+                            color: '#ffffff',
+                            border: 'none',
+                            padding: '6px 12px',
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}>
+                          Publish
+                        </button>
+                      )}
+                      {item.import_status === 'imported' && (
+                        <button
+                          onClick={() => rejectArticle(item.id)}
+                          style={{
+                            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                            color: '#ef4444',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            padding: '6px 10px',
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}>
+                          Reject
+                        </button>
+                      )}
                       <Link
                         href={`/articles/${item.id}`}
                         style={{

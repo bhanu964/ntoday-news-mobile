@@ -80,7 +80,14 @@ export const CommentsService = {
         .select()
         .single();
 
-      if (error || !data) {
+      if (error) {
+        if (error.message && (error.message.toLowerCase().includes('rate limit') || error.message.includes('chk_comment_length'))) {
+          throw new Error(error.message);
+        }
+        return fallbackComment;
+      }
+
+      if (!data) {
         return fallbackComment;
       }
 

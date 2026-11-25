@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,10 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { TopHeader, FeedFilterType } from '@/components/TopHeader';
@@ -31,6 +33,7 @@ import { TRANSLATIONS } from '@/constants/translations';
 
 export default function MainAppScreen() {
   const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   const [activeFilter, setActiveFilter] = useState<FeedFilterType>('latest');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -45,7 +48,13 @@ export default function MainAppScreen() {
   // Unread snapshot list & layout measurement
   const [unreadSessionIds, setUnreadSessionIds] = useState<string[]>([]);
   const [containerHeight, setContainerHeight] = useState<number>(0);
+  const [showHeader, setShowHeader] = useState<boolean>(false);
   const reelsFeedRef = useRef<ReelsFeedRef>(null);
+
+  // Toggle header display on screen click (Way2News style)
+  const handleToggleHeader = React.useCallback(() => {
+    setShowHeader((prev) => !prev);
+  }, []);
 
   // Hooks for Data & Services
   const {
@@ -115,6 +124,8 @@ export default function MainAppScreen() {
     if (!article.isRead) {
       markArticleAsRead(article.id);
     }
+    // Auto-hide header when user swipes to next story (Way2News behavior)
+    setShowHeader(false);
   };
 
   // Handle header filter clicks
@@ -182,41 +193,46 @@ export default function MainAppScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Solid black status bar area – photo starts cleanly below it, like Way2News */}
+      <View style={{ height: insets.top, backgroundColor: '#000000', width: '100%' }} />
       <StatusBar style="light" />
 
-      {/* 1. TOP HEADER (Shown on Home & Feed tabs) */}
-      {(activeTab === 'home' || activeTab === 'feed') && (
-        <TopHeader
-          activeFilter={activeFilter}
-          unreadCount={unreadCount}
-          isTelugu={isTelugu}
-          onFilterChange={handleFilterChange}
-          onLanguageToggle={handleLanguageToggle}
-          onTunePress={() => setShowFilterModal(true)}
-          onBookmarksPress={() => {
-            const next = !showOnlyBookmarks;
-            setShowOnlyBookmarks(next);
-            Alert.alert(
-              next ? t.bookmarksActive : (isTelugu ? 'అన్ని వార్తలు' : 'All Stories'),
-              next ? t.bookmarksActiveMsg : t.allNewsMsg
-            );
-          }}
-        />
-      )}
-
-      {/* 2. ACTIVE FILTER STATUS CHIP (When Category or Bookmarks are applied) */}
-      {(selectedCategory !== 'all' || showOnlyBookmarks) && activeTab === 'home' && (
-        <View style={styles.activeFilterBanner}>
-          <Text style={styles.activeFilterText}>
-            {showOnlyBookmarks ? t.savedBookmarksBanner : `${t.categoryBanner}${selectedCategory}`}
-          </Text>
-          <TouchableOpacity
-            onPress={() => {
-              setSelectedCategory('all');
-              setShowOnlyBookmarks(false);
-            }}>
-            <Ionicons name="close-circle" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
+      {/* 1. TOP HEADER OVERLAY (Hidden on app open; displayed when user taps the screen, like Way2News) */}
+      {showHeader && (activeTab === 'home' || activeTab === 'feed') && (
+        <View style={styles.headerOverlay}>
+          <View style={styles.headerOverlayInner}>
+            <TopHeader
+              activeFilter={activeFilter}
+              unreadCount={unreadCount}
+              isTelugu={isTelugu}
+              onFilterChange={handleFilterChange}
+              onLanguageToggle={handleLanguageToggle}
+              onTunePress={() => setShowFilterModal(true)}
+              onBookmarksPress={() => {
+                const next = !showOnlyBookmarks;
+                setShowOnlyBookmarks(next);
+                Alert.alert(
+                  next ? t.bookmarksActive : (isTelugu ? 'అన్ని వార్తలు' : 'All Stories'),
+                  next ? t.bookmarksActiveMsg : t.allNewsMsg
+                );
+              }}
+            />
+            {/* ACTIVE FILTER STATUS CHIP (When Category or Bookmarks are applied) */}
+            {(selectedCategory !== 'all' || showOnlyBookmarks) && activeTab === 'home' && (
+              <View style={styles.activeFilterBanner}>
+                <Text style={styles.activeFilterText}>
+                  {showOnlyBookmarks ? t.savedBookmarksBanner : `${t.categoryBanner}${selectedCategory}`}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedCategory('all');
+                    setShowOnlyBookmarks(false);
+                  }}>
+                  <Ionicons name="close-circle" size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
       )}
 
@@ -263,6 +279,7 @@ export default function MainAppScreen() {
                   onActiveIndexChange={handleActiveIndexChange}
                   onLoadMore={loadMore}
                   onToggleLike={toggleLike}
+                  onCardPress={handleToggleHeader}
                 />
               ))}
 
@@ -278,6 +295,7 @@ export default function MainAppScreen() {
                 onActiveIndexChange={handleActiveIndexChange}
                 onLoadMore={loadMore}
                 onToggleLike={toggleLike}
+                onCardPress={handleToggleHeader}
               />
             )}
 
@@ -294,8 +312,17 @@ export default function MainAppScreen() {
         )}
       </View>
 
-      {/* 4. BOTTOM NAVIGATION BAR (5 Icons) */}
-      <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} />
+      {/* 4. BOTTOM NAVIGATION BAR
+           – On home/feed: hidden when showHeader is false (reading mode, action bar at bottom like Way2News).
+           – On home/feed: shown as an absolute overlay when user taps screen (showHeader = true).
+           – Always shown on other tabs (live, videos, explore). */}
+      {(activeTab !== 'home' && activeTab !== 'feed') ? (
+        <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} />
+      ) : showHeader ? (
+        <View style={styles.bottomNavOverlay}>
+          <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} />
+        </View>
+      ) : null}
 
       {/* 5. FEEDBACK MODAL (Opens on Feedback button click) */}
       <FeedbackModal
@@ -333,9 +360,41 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#121214',
+    position: 'relative',
+    ...(Platform.OS === 'web'
+      ? {
+          height: '100vh',
+          // @ts-ignore
+          height: '100dvh',
+          overflow: 'hidden',
+          overscrollBehavior: 'contain',
+        }
+      : {}),
+  },
+  headerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    elevation: 10,
+    backgroundColor: '#121214',
+    alignItems: 'center',
+  },
+  headerOverlayInner: {
+    width: '100%',
+    maxWidth: 480,
   },
   mainContent: {
     flex: 1,
+    overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? {
+          height: '100%',
+          overscrollBehavior: 'contain',
+          touchAction: 'pan-y',
+        }
+      : {}),
   },
   activeFilterBanner: {
     flexDirection: 'row',
@@ -380,6 +439,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
+  },
+  bottomNavOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 90,
+    elevation: 9,
   },
   accountModalWrapper: {
     flex: 1,

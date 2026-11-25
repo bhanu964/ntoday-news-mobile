@@ -1,27 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Platform } from 'react-native';
+import { View, StyleSheet, Image, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { NewsArticle } from '@/types/news';
 
 interface MediaViewerProps {
   article: NewsArticle;
-  currentIndex: number;
-  totalCards: number;
-  height: number;
-  isBookmarked: boolean;
-  onToggleBookmark: () => void;
+  height?: number | string;
   isActive?: boolean;
 }
 
 export function MediaViewer({
   article,
-  currentIndex,
-  totalCards,
-  height,
-  isBookmarked,
-  onToggleBookmark,
+  height = '100%',
   isActive = true,
 }: MediaViewerProps) {
   const isVideo = article.mediaType === 'video' && !!article.videoUrl;
@@ -42,7 +33,7 @@ export function MediaViewer({
   const safeImageUri =
     article.imageUrl && !hasImageError
       ? article.imageUrl
-      : fallbackImages[currentIndex % fallbackImages.length];
+      : fallbackImages[0];
 
   // Initialize expo-video player for video news
   const player = useVideoPlayer(isVideo ? article.videoUrl! : '', (p) => {
@@ -98,7 +89,7 @@ export function MediaViewer({
   return (
     <View style={[styles.container, { height }]}>
       <View style={styles.mediaBox}>
-        {/* Background News Image (Always rendered so the user never sees a black screen) */}
+        {/* Full-bleed Photo (Edge to edge, resizeMode cover, no rounded corners, no badges/text overlays) */}
         <Image
           source={{ uri: safeImageUri }}
           style={styles.image}
@@ -106,6 +97,7 @@ export function MediaViewer({
           onError={() => setHasImageError(true)}
         />
 
+        {/* Video Player & Controls (Only for video cards) */}
         {isVideo && (
           <>
             {Platform.OS === 'web' ? (
@@ -134,80 +126,34 @@ export function MediaViewer({
               />
             )}
 
-            {/* Video Center Play/Pause Indicator (tappable) */}
+            {/* Video Center Play/Pause Tap Indicator */}
             <TouchableOpacity
               style={styles.centerTapZone}
               activeOpacity={0.9}
               onPress={togglePlayPause}>
               {!isPlaying && (
                 <View style={styles.pausedIconBadge}>
-                  <Ionicons name="play" size={32} color="#FFFFFF" style={{ marginLeft: 3 }} />
+                  <Ionicons name="play" size={28} color="#FFFFFF" style={{ marginLeft: 3 }} />
                 </View>
               )}
             </TouchableOpacity>
 
-            {/* Video Mute/Unmute Pill */}
+            {/* Small Mute Button at photo's bottom-right */}
             <TouchableOpacity style={styles.mutePill} onPress={toggleMute}>
               <Ionicons
                 name={isMuted ? 'volume-mute' : 'volume-high'}
-                size={14}
+                size={12}
                 color="#FFFFFF"
               />
-              <Text style={styles.muteText}>{isMuted ? 'Unmute' : 'Mute'}</Text>
             </TouchableOpacity>
+
+            {/* Tiny Video Indicator at top-right (video cards only) */}
+            <View style={styles.videoIndicatorBadge}>
+              <Ionicons name="videocam" size={11} color="#FFFFFF" />
+            </View>
           </>
         )}
       </View>
-
-      {/* Modern Gradient Overlays for Badges */}
-      <LinearGradient
-        colors={['rgba(0,0,0,0.65)', 'transparent', 'rgba(18,18,20,0.85)']}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-
-      {/* Floating Top Left: Author Tag with Official Logo replacing thunder */}
-      <View style={styles.authorBadge}>
-        <View style={styles.authorIconCircle}>
-          <Image
-            source={require('../../assets/images/ntoday-official-logo.png')}
-            style={styles.authorLogo}
-            resizeMode="contain"
-          />
-        </View>
-        <View>
-          <Text style={styles.authorName}>{article.authorName}</Text>
-          <Text style={styles.authorDesk}>{article.authorDesk}</Text>
-        </View>
-      </View>
-
-      {/* Floating Top Right: Card Index Counter & Media Tag */}
-      <View style={styles.topRightRow}>
-        <View style={styles.mediaTypeBadge}>
-          <Ionicons
-            name={isVideo ? 'videocam' : 'image'}
-            size={12}
-            color={isVideo ? '#EF4444' : '#60A5FA'}
-          />
-          <Text style={styles.mediaTypeText}>{isVideo ? 'VIDEO' : 'PHOTO'}</Text>
-        </View>
-        <View style={styles.counterBadge}>
-          <Text style={styles.counterText}>
-            {currentIndex}/{totalCards}
-          </Text>
-        </View>
-      </View>
-
-      {/* Bookmark Pin Tag on Bottom-Left of Media */}
-      <TouchableOpacity
-        style={[styles.bookmarkPin, isBookmarked && styles.bookmarkPinActive]}
-        onPress={onToggleBookmark}>
-        <Ionicons
-          name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
-          size={16}
-          color="#FFFFFF"
-        />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -216,11 +162,9 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     position: 'relative',
-    backgroundColor: '#18181b',
-    borderRadius: 18,
+    backgroundColor: '#09090b',
+    borderRadius: 0, // Edge-to-edge, no rounded corners
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   mediaBox: {
     ...StyleSheet.absoluteFill,
@@ -236,10 +180,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pausedIconBadge: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
@@ -247,111 +191,31 @@ const styles = StyleSheet.create({
   },
   mutePill: {
     position: 'absolute',
-    bottom: 12,
-    right: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    bottom: 8,
+    right: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 14,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  muteText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  authorBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(24, 24, 27, 0.88)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 18,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  authorIconCircle: {
-    width: 24,
-    height: 16,
-    borderRadius: 2,
-    backgroundColor: '#000000',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    zIndex: 10,
   },
-  authorLogo: {
-    width: 24,
-    height: 15,
-  },
-  authorName: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  authorDesk: {
-    color: '#D4D4D8',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  topRightRow: {
+  // Top-right tiny video play chip (video cards only)
+  videoIndicatorBadge: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 10,
+    right: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  mediaTypeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(24, 24, 27, 0.88)',
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  mediaTypeText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  counterBadge: {
-    backgroundColor: 'rgba(24, 24, 27, 0.88)',
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  counterText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  bookmarkPin: {
-    position: 'absolute',
-    bottom: -1,
-    left: 14,
-    backgroundColor: '#BA1A1A',
-    paddingHorizontal: 7,
-    paddingVertical: 5,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-    zIndex: 5,
-  },
-  bookmarkPinActive: {
-    backgroundColor: '#E50914',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    zIndex: 10,
   },
 });

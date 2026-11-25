@@ -19,6 +19,9 @@ export interface NewsArticle {
   authorAvatar?: string;
   sourceName: string;
   sourceCredit?: string;
+  sourceUrl?: string;
+  externalId?: string;
+  importStatus?: 'none' | 'imported' | 'manual' | 'rejected';
   timeAgo: string;
   title: string;
   title_en?: string;

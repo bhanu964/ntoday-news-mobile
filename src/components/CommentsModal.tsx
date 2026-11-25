@@ -9,6 +9,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,7 +50,17 @@ export function CommentsModal({
         const saved = await CommentsService.addComment(articleId, userName, text);
         onAddComment(saved);
         return;
-      } catch {
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (errMsg.toLowerCase().includes('rate limit')) {
+          Alert.alert(
+            isTelugu ? 'పరిమితి మించింది' : 'Rate Limit',
+            isTelugu
+              ? 'దయచేసి కొద్దిసేపు ఆగి కామెంట్ చేయండి (1 నిమిషంలో గరిష్టంగా 3 కామెంట్లు మాత్రమే).'
+              : 'Please wait a minute before posting another comment (maximum 3 per minute).'
+          );
+          return;
+        }
         // Fallback to local
       }
     }
@@ -122,14 +133,22 @@ export function CommentsModal({
 
           {/* Add Comment Input Bar */}
           <View style={styles.inputBar}>
-            <TextInput
-              style={styles.input}
-              placeholder={isTelugu ? 'మీ అభిప్రాయాన్ని రాయండి...' : 'Write your comment...'}
-              placeholderTextColor="#71717A"
-              value={commentText}
-              onChangeText={setCommentText}
-              multiline
-            />
+            <View style={{ flex: 1, position: 'relative' }}>
+              <TextInput
+                style={styles.input}
+                placeholder={isTelugu ? 'మీ అభిప్రాయాన్ని రాయండి (గరిష్టంగా 500 అక్షరాలు)...' : 'Write your comment (max 500 characters)...'}
+                placeholderTextColor="#71717A"
+                value={commentText}
+                onChangeText={setCommentText}
+                multiline
+                maxLength={500}
+              />
+              {commentText.length > 350 && (
+                <Text style={{ position: 'absolute', right: 12, bottom: -16, fontSize: 10, color: commentText.length >= 500 ? '#ef4444' : '#71717a' }}>
+                  {commentText.length}/500
+                </Text>
+              )}
+            </View>
             <TouchableOpacity
               style={[styles.sendBtn, !commentText.trim() && styles.sendBtnDisabled]}
               disabled={!commentText.trim()}

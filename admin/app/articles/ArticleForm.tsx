@@ -24,6 +24,25 @@ const CATEGORIES = [
   { id: 'cat-andhra', label: 'ఆంధ్రప్రదేశ్ (Andhra Pradesh)' },
 ];
 
+// Trim text to the nearest full sentence under limit for imported/auto-filled card summaries
+function trimToSentenceUnderLimit(text: string, maxChars: number = 380): string {
+  if (!text) return '';
+  if (text.length <= maxChars) return text;
+  const sliced = text.slice(0, maxChars);
+  const lastEnd = Math.max(
+    sliced.lastIndexOf('.'),
+    sliced.lastIndexOf('!'),
+    sliced.lastIndexOf('?'),
+    sliced.lastIndexOf('\n'),
+    sliced.lastIndexOf('।')
+  );
+  if (lastEnd > 80) {
+    return sliced.slice(0, lastEnd + 1).trim();
+  }
+  const lastSpace = sliced.lastIndexOf(' ');
+  return (lastSpace > 80 ? sliced.slice(0, lastSpace) : sliced).trim() + '...';
+}
+
 export default function ArticleForm({ initialData = {}, isEdit = false }: ArticleFormProps) {
   const router = useRouter();
 
@@ -38,7 +57,7 @@ export default function ArticleForm({ initialData = {}, isEdit = false }: Articl
   const [videoUrl, setVideoUrl] = useState(initialData.video_url || '');
   const [author, setAuthor] = useState(initialData.author || 'Desk Reporter');
   const [source, setSource] = useState(initialData.source || 'NTODAY NEWS');
-  const [status, setStatus] = useState<'published' | 'draft'>(initialData.status || 'published');
+  const [status, setStatus] = useState<'published' | 'draft' | 'archived'>(initialData.status || 'published');
   const [isBreaking, setIsBreaking] = useState(Boolean(initialData.is_breaking));
 
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -108,8 +127,8 @@ export default function ArticleForm({ initialData = {}, isEdit = false }: Articl
       category_id: categoryId,
       title: title.trim(),
       title_en: titleEn.trim() || null,
-      summary: summary.trim() || null,
-      summary_en: summaryEn.trim() || null,
+      summary: summary.trim() ? summary.trim() : (content.trim() ? trimToSentenceUnderLimit(content.trim(), 380) : null),
+      summary_en: summaryEn.trim() ? summaryEn.trim() : (contentEn.trim() ? trimToSentenceUnderLimit(contentEn.trim(), 380) : null),
       content: content.trim(),
       content_en: contentEn.trim() || null,
       image_url: imageUrl.trim(),
@@ -171,11 +190,16 @@ export default function ArticleForm({ initialData = {}, isEdit = false }: Articl
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }}>
         {/* Left Column: Content */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Telugu Headline */}
+          {/* Telugu & English Headline */}
           <div className="card">
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 800, marginBottom: 6 }}>
-              Headline (తెలుగు శీర్షిక) *
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 800 }}>
+                Headline (తెలుగు శీర్షిక) *
+              </label>
+              <span style={{ fontSize: 12, fontWeight: 600, color: title.length > 80 ? '#f59e0b' : '#a1a1aa' }}>
+                {title.length}/80 chars
+              </span>
+            </div>
             <input
               type="text"
               required
@@ -185,7 +209,7 @@ export default function ArticleForm({ initialData = {}, isEdit = false }: Articl
               style={{
                 width: '100%',
                 backgroundColor: '#121214',
-                border: '1px solid #27272a',
+                border: title.length > 80 ? '1px solid #f59e0b' : '1px solid #27272a',
                 color: '#ffffff',
                 padding: '10px 14px',
                 borderRadius: 8,
@@ -194,11 +218,21 @@ export default function ArticleForm({ initialData = {}, isEdit = false }: Articl
                 outline: 'none',
               }}
             />
+            {title.length > 80 && (
+              <p style={{ fontSize: 12, color: '#f59e0b', marginTop: 4, marginBottom: 0 }}>
+                ⚠️ Headline exceeds recommended 80 chars ({title.length}/80) — may wrap beyond 2 lines on small cards.
+              </p>
+            )}
 
             {/* English Headline */}
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginTop: 14, marginBottom: 6, color: '#a1a1aa' }}>
-              Headline (English Translation - Optional)
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: '#a1a1aa' }}>
+                Headline (English Translation - Optional)
+              </label>
+              <span style={{ fontSize: 12, fontWeight: 600, color: titleEn.length > 80 ? '#f59e0b' : '#71717a' }}>
+                {titleEn.length}/80 chars
+              </span>
+            </div>
             <input
               type="text"
               value={titleEn}
@@ -207,7 +241,7 @@ export default function ArticleForm({ initialData = {}, isEdit = false }: Articl
               style={{
                 width: '100%',
                 backgroundColor: '#121214',
-                border: '1px solid #27272a',
+                border: titleEn.length > 80 ? '1px solid #f59e0b' : '1px solid #27272a',
                 color: '#ffffff',
                 padding: '10px 14px',
                 borderRadius: 8,
@@ -215,19 +249,96 @@ export default function ArticleForm({ initialData = {}, isEdit = false }: Articl
                 outline: 'none',
               }}
             />
+            {titleEn.length > 80 && (
+              <p style={{ fontSize: 12, color: '#f59e0b', marginTop: 4, marginBottom: 0 }}>
+                ⚠️ English headline exceeds recommended 80 chars ({titleEn.length}/80).
+              </p>
+            )}
           </div>
 
-          {/* Telugu Content */}
+          {/* Card Body / Summary Field (Soft limit: 380 chars, ~10 lines) */}
           <div className="card">
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 800, marginBottom: 6 }}>
-              Full Story Content (పూర్తి వార్తా కథనం) *
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <label style={{ fontSize: 13, fontWeight: 800 }}>
+                Card Body / Summary (కార్డు సారాంశం - 1-Swipe Feed)
+              </label>
+              <span style={{ fontSize: 12, fontWeight: 600, color: summary.length > 380 ? '#f59e0b' : '#a1a1aa' }}>
+                {summary.length}/380 chars (about {Math.max(1, Math.ceil(summary.length / 38))} lines)
+              </span>
+            </div>
+            <p style={{ fontSize: 12, color: '#71717a', marginBottom: 8 }}>
+              This text appears on the news card. Keep it within 10 lines.
+            </p>
+            <textarea
+              rows={5}
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="కార్డుపై కనిపించే సంక్షిప్త వార్తను ఇక్కడ నమోదు చేయండి (సుమారు 10 లైన్లు / 380 అక్షరాలు)..."
+              style={{
+                width: '100%',
+                backgroundColor: '#121214',
+                border: summary.length > 380 ? '1px solid #f59e0b' : '1px solid #27272a',
+                color: '#ffffff',
+                padding: '10px 14px',
+                borderRadius: 8,
+                fontSize: 14,
+                lineHeight: 1.6,
+                outline: 'none',
+              }}
+            />
+            {summary.length > 380 && (
+              <p style={{ fontSize: 12, color: '#f59e0b', marginTop: 4, marginBottom: 0 }}>
+                ⚠️ Summary exceeds recommended 380 chars ({summary.length}/380, about {Math.ceil(summary.length / 38)} lines) — text beyond 10 lines will show an ellipsis (...).
+              </p>
+            )}
+
+            {/* English Summary */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 4 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: '#a1a1aa' }}>
+                English Card Summary (Optional)
+              </label>
+              <span style={{ fontSize: 12, fontWeight: 600, color: summaryEn.length > 380 ? '#f59e0b' : '#71717a' }}>
+                {summaryEn.length}/380 chars (about {Math.max(1, Math.ceil(summaryEn.length / 38))} lines)
+              </span>
+            </div>
+            <textarea
+              rows={4}
+              value={summaryEn}
+              onChange={(e) => setSummaryEn(e.target.value)}
+              placeholder="English summary for the card feed (approx 10 lines)..."
+              style={{
+                width: '100%',
+                backgroundColor: '#121214',
+                border: summaryEn.length > 380 ? '1px solid #f59e0b' : '1px solid #27272a',
+                color: '#ffffff',
+                padding: '10px 14px',
+                borderRadius: 8,
+                fontSize: 14,
+                lineHeight: 1.6,
+                outline: 'none',
+              }}
+            />
+            {summaryEn.length > 380 && (
+              <p style={{ fontSize: 12, color: '#f59e0b', marginTop: 4, marginBottom: 0 }}>
+                ⚠️ English summary exceeds recommended 380 chars ({summaryEn.length}/380).
+              </p>
+            )}
+          </div>
+
+          {/* Full Story Content */}
+          <div className="card">
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 800, marginBottom: 4 }}>
+              Full Story Content (పూర్తి వార్తా కథనం - 'Read More' తెరపై) *
             </label>
+            <p style={{ fontSize: 12, color: '#71717a', marginBottom: 8 }}>
+              Full detailed report displayed when readers tap 'Read more...'.
+            </p>
             <textarea
               required
               rows={7}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="వార్తా వివరాలను ఇక్కడ నమోదు చేయండి..."
+              placeholder="పూర్తి వార్తా వివరాలను ఇక్కడ నమోదు చేయండి..."
               style={{
                 width: '100%',
                 backgroundColor: '#121214',
@@ -243,13 +354,13 @@ export default function ArticleForm({ initialData = {}, isEdit = false }: Articl
 
             {/* English Content */}
             <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginTop: 14, marginBottom: 6, color: '#a1a1aa' }}>
-              English Content (Optional)
+              Full English Content (Optional)
             </label>
             <textarea
               rows={5}
               value={contentEn}
               onChange={(e) => setContentEn(e.target.value)}
-              placeholder="Enter English translation of the news story..."
+              placeholder="Enter full English story details..."
               style={{
                 width: '100%',
                 backgroundColor: '#121214',

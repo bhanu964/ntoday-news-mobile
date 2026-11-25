@@ -11,6 +11,11 @@ export interface Article {
   image_url: string;
   video_url: string | null;
   source: string | null;
+  source_name?: string | null;
+  source_url?: string | null;
+  external_id?: string | null;
+  imported_at?: string | null;
+  import_status?: 'none' | 'imported' | 'manual' | 'rejected' | null;
   author: string | null;
   status: 'draft' | 'published' | 'archived';
   is_breaking: boolean;
@@ -41,4 +46,13 @@ export interface Comment {
   articles?: {
     title: string;
   };
+}
+
+export interface Editor {
+  id: string;
+  email: string;
+  role: 'admin' | 'editor';
+  channel_id: string;
+  is_active: boolean;
+  created_at: string;
 }

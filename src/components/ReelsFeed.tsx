@@ -6,6 +6,7 @@ import {
   Platform,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  LayoutChangeEvent,
   useWindowDimensions,
 } from 'react-native';
 import { NewsArticle, NewsComment } from '@/types/news';
@@ -18,33 +19,53 @@ export interface ReelsFeedRef {
 
 interface ReelsFeedProps {
   articles: NewsArticle[];
-  containerHeight: number;
+  containerHeight?: number;
   isTelugu?: boolean;
   onBookmarkChange?: (id: string, isBookmarked: boolean) => void;
   onAddComment?: (articleId: string, comment: NewsComment) => void;
   onActiveIndexChange?: (index: number, article: NewsArticle) => void;
   onLoadMore?: () => void;
   onToggleLike?: (articleId: string, currentLikes: number) => Promise<{ newCount: number; isLiked: boolean } | void>;
+  onCardPress?: () => void;
   initialIndex?: number;
 }
 
 export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function ReelsFeed(
   {
     articles,
-    containerHeight,
+    containerHeight = 0,
     isTelugu = true,
     onBookmarkChange,
     onAddComment,
     onActiveIndexChange,
     onLoadMore,
     onToggleLike,
+    onCardPress,
     initialIndex = 0,
   },
   ref
 ) {
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const cardWidth = Platform.OS === 'web' ? Math.min(windowWidth, 480) : windowWidth;
   const flatListRef = useRef<FlatList>(null);
+
+  // Measure and track the exact visible feed height (area between top header and bottom nav bar)
+  const [feedHeight, setFeedHeight] = useState<number>(() => containerHeight || 0);
+
+  useEffect(() => {
+    if (containerHeight > 0 && Math.abs(containerHeight - feedHeight) > 1) {
+      setFeedHeight(containerHeight);
+    }
+  }, [containerHeight]);
+
+  const handleContainerLayout = useCallback((e: LayoutChangeEvent) => {
+    const { height } = e.nativeEvent.layout;
+    if (height > 0 && Math.abs(height - feedHeight) > 1) {
+      setFeedHeight(height);
+    }
+  }, [feedHeight]);
+
+  const PAGE_HEIGHT = feedHeight > 0 ? feedHeight : (containerHeight > 0 ? containerHeight : windowHeight - 110);
 
   // Single authoritative active index
   const [activeIndex, setActiveIndex] = useState<number>(() =>
@@ -54,9 +75,6 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
   const activeIndexRef = useRef<number>(activeIndex);
   activeIndexRef.current = activeIndex;
 
-  // Track the index where a touch/drag gesture starts to clamp movement to AT MOST 1 item
-  const dragStartIndexRef = useRef<number>(activeIndex);
-  const isTransitioningRef = useRef<boolean>(false);
   const isWheelLockedRef = useRef<boolean>(false);
 
   // Diagnostic logging helper
@@ -64,18 +82,15 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
     console.log(`[FEED] ${message}`);
   };
 
-  // Synchronize when containerHeight changes (e.g., orientation or safe area measurement)
+  // Synchronize when PAGE_HEIGHT is determined or changes (safe area or orientation changes)
   useEffect(() => {
-    if (containerHeight > 0) {
-      logFeed(`Viewport measured: height=${containerHeight}px, activeIndex=${activeIndexRef.current}`);
-      if (activeIndexRef.current > 0) {
-        flatListRef.current?.scrollToIndex({
-          index: activeIndexRef.current,
-          animated: false,
-        });
-      }
+    if (PAGE_HEIGHT > 0 && activeIndexRef.current > 0) {
+      flatListRef.current?.scrollToIndex({
+        index: activeIndexRef.current,
+        animated: false,
+      });
     }
-  }, [containerHeight]);
+  }, [PAGE_HEIGHT]);
 
   // Adjust active index if articles list changes/shrinks
   useEffect(() => {
@@ -106,70 +121,44 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
           animated,
         });
       } catch (err) {
-        // Safe fallback if view layout is still pending
+        // Safe fallback if layout is pending
       }
     },
     getActiveIndex: () => activeIndexRef.current,
   }));
 
-  // GESTURE LIFECYCLE HANDLERS
+  // GESTURE & SCROLL LIFECYCLE HANDLERS
 
-  // A. Gesture Start: Record start index when the user touches and begins dragging
-  const handleScrollBeginDrag = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (containerHeight <= 0) return;
-      const offsetY = e.nativeEvent.contentOffset.y;
-      const startIndex = Math.max(0, Math.min(Math.round(offsetY / containerHeight), articles.length - 1));
-      dragStartIndexRef.current = startIndex;
-      isTransitioningRef.current = true;
-      logFeed(`Gesture started: index=${startIndex}`);
-    },
-    [containerHeight, articles.length]
-  );
-
-  // B. Gesture End: Enforce that ONE gesture can navigate AT MOST ONE item away from startIndex
+  // A. Gesture release without momentum: commit destination index
   const handleScrollEndDrag = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (containerHeight <= 0) return;
-      const offsetY = e.nativeEvent.contentOffset.y;
-      const velocityY = e.nativeEvent.velocity?.y ?? 0;
-      const startIndex = dragStartIndexRef.current;
-      const rawTarget = Math.round(offsetY / containerHeight);
-
-      // CRITICAL CLAMP: One swipe can advance by at most +1 or -1 from startIndex
-      let targetIndex = rawTarget;
-      if (targetIndex > startIndex + 1) {
-        targetIndex = startIndex + 1;
-      } else if (targetIndex < startIndex - 1) {
-        targetIndex = startIndex - 1;
-      }
-      targetIndex = Math.max(0, Math.min(targetIndex, articles.length - 1));
-
-      const direction = targetIndex > startIndex ? 'UP' : targetIndex < startIndex ? 'DOWN' : 'NONE';
-      logFeed(
-        `Gesture released: direction=${direction}, startIndex=${startIndex}, targetIndex=${targetIndex}, rawTarget=${rawTarget}, vy=${velocityY.toFixed(2)}`
-      );
-
-      // If velocity or distance attempted to skip past the adjacent item, clamp and enforce target
-      if (targetIndex !== rawTarget) {
-        flatListRef.current?.scrollToIndex({
-          index: targetIndex,
-          animated: true,
-        });
+      if (PAGE_HEIGHT <= 0) return;
+      const velocityY = Math.abs(e.nativeEvent.velocity?.y ?? 0);
+      // Only handle slow drag releases where momentum does not take over
+      if (velocityY < 0.05) {
+        const offsetY = e.nativeEvent.contentOffset.y;
+        const settledIndex = Math.max(0, Math.min(Math.round(offsetY / PAGE_HEIGHT), articles.length - 1));
+        if (settledIndex !== activeIndexRef.current) {
+          activeIndexRef.current = settledIndex;
+          setActiveIndex(settledIndex);
+          if (articles[settledIndex]) {
+            onActiveIndexChange?.(settledIndex, articles[settledIndex]);
+          }
+        }
       }
     },
-    [containerHeight, articles.length]
+    [PAGE_HEIGHT, articles, onActiveIndexChange]
   );
 
-  // C. Transition Settled: Commit destination index exactly once when momentum finishes
+  // B. Native Momentum settled: Authoritative commit of active index
+  // Controls expo-video play/pause and unread tracking on mobile
   const handleMomentumScrollEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (containerHeight <= 0) return;
+      if (PAGE_HEIGHT <= 0) return;
       const offsetY = e.nativeEvent.contentOffset.y;
-      const settledIndex = Math.max(0, Math.min(Math.round(offsetY / containerHeight), articles.length - 1));
-      isTransitioningRef.current = false;
+      const settledIndex = Math.max(0, Math.min(Math.round(offsetY / PAGE_HEIGHT), articles.length - 1));
 
-      logFeed(`Transition completed: index=${settledIndex}`);
+      logFeed(`Paging snapped: index=${settledIndex}`);
 
       if (settledIndex !== activeIndexRef.current) {
         activeIndexRef.current = settledIndex;
@@ -179,17 +168,38 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
         }
       }
 
+      // Pagination near the end
       if (settledIndex >= articles.length - 2) {
         onLoadMore?.();
       }
     },
-    [containerHeight, articles, onActiveIndexChange, onLoadMore]
+    [PAGE_HEIGHT, articles, onActiveIndexChange, onLoadMore]
   );
 
-  // Web Wheel / Trackpad listener for desktop & mobile browsers: strictly 1 item per wheel flick
+  // C. Web scroll synchronization for mobile browsers (touch snapping) & desktop
+  const handleWebScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (Platform.OS !== 'web' || PAGE_HEIGHT <= 0) return;
+      const offsetY = e.nativeEvent.contentOffset.y;
+      const settledIndex = Math.max(0, Math.min(Math.round(offsetY / PAGE_HEIGHT), articles.length - 1));
+      if (settledIndex !== activeIndexRef.current) {
+        activeIndexRef.current = settledIndex;
+        setActiveIndex(settledIndex);
+        if (articles[settledIndex]) {
+          onActiveIndexChange?.(settledIndex, articles[settledIndex]);
+        }
+        if (settledIndex >= articles.length - 2) {
+          onLoadMore?.();
+        }
+      }
+    },
+    [PAGE_HEIGHT, articles, onActiveIndexChange, onLoadMore]
+  );
+
+  // D. Desktop Web Wheel / Trackpad listener: strictly 1 story per wheel flick
   const handleWebWheel = useCallback(
     (e: any) => {
-      if (Platform.OS !== 'web' || containerHeight <= 0) return;
+      if (Platform.OS !== 'web' || PAGE_HEIGHT <= 0) return;
       const deltaY = e?.nativeEvent?.deltaY ?? e?.deltaY ?? 0;
       if (Math.abs(deltaY) < 25) return;
 
@@ -198,7 +208,7 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
       isWheelLockedRef.current = true;
       setTimeout(() => {
         isWheelLockedRef.current = false;
-      }, 500);
+      }, 450);
 
       const currentIndex = activeIndexRef.current;
       const targetIndex =
@@ -219,16 +229,26 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
         }
       }
     },
-    [containerHeight, articles, onActiveIndexChange]
+    [PAGE_HEIGHT, articles, onActiveIndexChange]
   );
 
-  if (containerHeight <= 0) {
-    return <View style={styles.placeholder} />;
+  if (PAGE_HEIGHT <= 0) {
+    return <View style={styles.placeholder} onLayout={handleContainerLayout} />;
   }
 
   return (
     <View
-      style={[styles.container, { height: containerHeight, width: cardWidth }]}
+      style={[
+        styles.container,
+        { height: PAGE_HEIGHT, width: cardWidth },
+        Platform.OS === 'web' && ({
+          height: '100%',
+          overflow: 'hidden',
+          overscrollBehavior: 'contain',
+          touchAction: 'pan-y',
+        } as any),
+      ]}
+      onLayout={handleContainerLayout}
       // @ts-ignore: onWheel is supported on react-native-web
       onWheel={Platform.OS === 'web' ? handleWebWheel : undefined}>
       <FlatList
@@ -239,55 +259,57 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
           <View
             style={[
               styles.cardWrapper,
-              { height: containerHeight, width: cardWidth },
-              Platform.OS === 'web' && {
-                // @ts-ignore: CSS scroll-snap properties for web browsers
+              { height: PAGE_HEIGHT, width: cardWidth },
+              Platform.OS === 'web' && ({
                 scrollSnapAlign: 'start',
                 scrollSnapStop: 'always',
-              },
+                height: PAGE_HEIGHT,
+              } as any),
             ]}>
             <NewsCard
               article={item}
               currentIndex={index + 1}
               totalCards={articles.length}
-              cardHeight={containerHeight}
+              cardHeight={PAGE_HEIGHT}
               cardWidth={cardWidth}
               isTelugu={isTelugu}
               isActive={index === activeIndex}
               onBookmarkChange={onBookmarkChange}
               onAddComment={onAddComment}
               onToggleLike={onToggleLike}
+              onCardPress={onCardPress}
             />
           </View>
         )}
         onEndReached={onLoadMore}
         onEndReachedThreshold={0.5}
-        // Smooth Paging Configuration (slower and gentler glide)
-        pagingEnabled={false}
-        snapToInterval={containerHeight}
+        // Native full-page paging configuration (Way2News / Instagram Reels physics)
+        pagingEnabled
+        snapToInterval={PAGE_HEIGHT}
         snapToAlignment="start"
-        decelerationRate="normal"
-        disableIntervalMomentum={true}
+        decelerationRate="fast"
+        disableIntervalMomentum
         showsVerticalScrollIndicator={false}
         showsHorizontalScrollIndicator={false}
         bounces={false}
         overScrollMode="never"
         // Strict deterministic item layout
         getItemLayout={(_, index) => ({
-          length: containerHeight,
-          offset: containerHeight * index,
+          length: PAGE_HEIGHT,
+          offset: PAGE_HEIGHT * index,
           index,
         })}
-        // Gesture and Scroll event synchronization
-        onScrollBeginDrag={handleScrollBeginDrag}
+        // Scroll event handlers
         onScrollEndDrag={handleScrollEndDrag}
         onMomentumScrollEnd={handleMomentumScrollEnd}
+        onScroll={Platform.OS === 'web' ? handleWebScroll : undefined}
+        scrollEventThrottle={16}
         // Memory & Virtualization
         initialNumToRender={2}
         maxToRenderPerBatch={2}
         windowSize={3}
         removeClippedSubviews={Platform.OS !== 'web'}
-        // Safe fallback for scrollToIndex during rapid transitions
+        // Safe fallback for scrollToIndex
         onScrollToIndexFailed={(info) => {
           setTimeout(() => {
             flatListRef.current?.scrollToIndex({
@@ -298,12 +320,14 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
         }}
         style={[
           styles.flatList,
-          Platform.OS === 'web' && {
-            // @ts-ignore
-            scrollSnapType: 'y mandatory',
+          Platform.OS === 'web' && ({
+            height: '100%',
             overflowY: 'scroll',
-            scrollBehavior: 'smooth',
-          },
+            scrollSnapType: 'y mandatory',
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-y',
+          } as any),
         ]}
       />
     </View>
@@ -312,19 +336,18 @@ export const ReelsFeed = forwardRef<ReelsFeedRef, ReelsFeedProps>(function Reels
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#121214',
     overflow: 'hidden',
   },
   placeholder: {
     flex: 1,
-    backgroundColor: '#121214',
+    backgroundColor: 'transparent',
   },
   flatList: {
     flex: 1,
-    backgroundColor: '#121214',
+    backgroundColor: 'transparent',
   },
   cardWrapper: {
     overflow: 'hidden',
-    backgroundColor: '#121214',
+    backgroundColor: 'transparent',
   },
 });

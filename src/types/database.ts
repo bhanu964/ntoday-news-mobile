@@ -47,6 +47,11 @@ export type ArticleRow = {
   image_url: string;
   video_url: string | null;
   source: string | null;
+  source_name: string | null;
+  source_url: string | null;
+  external_id: string | null;
+  imported_at: string | null;
+  import_status: 'none' | 'imported' | 'manual' | 'rejected' | null;
   author: string | null;
   status: 'draft' | 'published' | 'archived';
   is_breaking: boolean;
@@ -55,6 +60,27 @@ export type ArticleRow = {
   comment_count: number;
   created_at: string;
   updated_at: string;
+};
+
+export type EditorRow = {
+  id: string;
+  email: string;
+  role: 'admin' | 'editor';
+  channel_id: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ImportLogRow = {
+  id: string;
+  channel_id: string;
+  run_time: string;
+  fetched: number;
+  inserted: number;
+  skipped: number;
+  errors: Json;
+  created_at: string;
 };
 
 export type CommentRow = {
@@ -145,6 +171,11 @@ export type Database = {
           image_url: string;
           video_url?: string | null;
           source?: string | null;
+          source_name?: string | null;
+          source_url?: string | null;
+          external_id?: string | null;
+          imported_at?: string | null;
+          import_status?: 'none' | 'imported' | 'manual' | 'rejected' | null;
           author?: string | null;
           status?: 'draft' | 'published' | 'archived';
           is_breaking?: boolean;
@@ -167,6 +198,11 @@ export type Database = {
           image_url?: string;
           video_url?: string | null;
           source?: string | null;
+          source_name?: string | null;
+          source_url?: string | null;
+          external_id?: string | null;
+          imported_at?: string | null;
+          import_status?: 'none' | 'imported' | 'manual' | 'rejected' | null;
           author?: string | null;
           status?: 'draft' | 'published' | 'archived';
           is_breaking?: boolean;
@@ -233,6 +269,52 @@ export type Database = {
           fcm_token?: string | null;
           last_active_at?: string;
           created_at?: string;
+        };
+        Relationships: GenericRelationship[];
+      };
+      import_logs: {
+        Row: ImportLogRow;
+        Insert: {
+          id?: string;
+          channel_id: string;
+          run_time?: string;
+          fetched?: number;
+          inserted?: number;
+          skipped?: number;
+          errors?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          channel_id?: string;
+          run_time?: string;
+          fetched?: number;
+          inserted?: number;
+          skipped?: number;
+          errors?: Json;
+          created_at?: string;
+        };
+        Relationships: GenericRelationship[];
+      };
+      editors: {
+        Row: EditorRow;
+        Insert: {
+          id: string;
+          email: string;
+          role?: 'admin' | 'editor';
+          channel_id: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          email?: string;
+          role?: 'admin' | 'editor';
+          channel_id?: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: GenericRelationship[];
       };

@@ -41,8 +41,11 @@ function mapRowToArticle(row: ArticleRow, index: number, total: number): NewsArt
     totalCards: total,
     authorName: row.author ? row.author.split('(')[0].trim() : 'Desk Reporter',
     authorDesk: row.author && row.author.includes('(') ? row.author.replace(/.*\(|\).*/g, '') : 'DESK',
-    sourceName: row.source || 'NTODAY NEWS',
-    sourceCredit: row.source || 'The Clearcut News',
+    sourceName: row.source_name || row.source || 'NTODAY NEWS',
+    sourceCredit: row.source_name ? `Source: ${row.source_name}` : row.source || 'The Clearcut News',
+    sourceUrl: row.source_url || undefined,
+    externalId: row.external_id || undefined,
+    importStatus: row.import_status || undefined,
     timeAgo: formatTimeAgo(row.published_at),
     title: row.title,
     title_en: row.title_en || undefined,
@@ -178,6 +181,35 @@ export const ArticlesService = {
       total: list.length,
       isFallback: true,
     };
+  },
+
+  /**
+   * Fetch an individual article by ID from Supabase or fallback mock data.
+   */
+  async fetchArticleById(id: string): Promise<NewsArticle | null> {
+    if (isSupabaseReady() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('articles')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (data && !error) {
+          return mapRowToArticle(data as ArticleRow, 0, 1);
+        }
+      } catch {
+        // Fallback below
+      }
+    }
+
+    // Search local fallback mock articles
+    const mock = MOCK_NEWS_ARTICLES.find((a) => a.id === id);
+    if (mock) {
+      return { ...mock, cardIndex: 1, totalCards: 1 };
+    }
+
+    return null;
   },
 
   /**

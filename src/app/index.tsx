@@ -207,15 +207,7 @@ export default function MainAppScreen() {
               isTelugu={isTelugu}
               onFilterChange={handleFilterChange}
               onLanguageToggle={handleLanguageToggle}
-              onTunePress={() => setShowFilterModal(true)}
-              onBookmarksPress={() => {
-                const next = !showOnlyBookmarks;
-                setShowOnlyBookmarks(next);
-                Alert.alert(
-                  next ? t.bookmarksActive : (isTelugu ? 'అన్ని వార్తలు' : 'All Stories'),
-                  next ? t.bookmarksActiveMsg : t.allNewsMsg
-                );
-              }}
+              onUserPress={() => setShowAccountModal(true)}
             />
             {/* ACTIVE FILTER STATUS CHIP (When Category or Bookmarks are applied) */}
             {(selectedCategory !== 'all' || showOnlyBookmarks) && activeTab === 'home' && (
@@ -312,15 +304,33 @@ export default function MainAppScreen() {
         )}
       </View>
 
-      {/* 4. BOTTOM NAVIGATION BAR
-           – On home/feed: hidden when showHeader is false (reading mode, action bar at bottom like Way2News).
-           – On home/feed: shown as an absolute overlay when user taps screen (showHeader = true).
-           – Always shown on other tabs (live, videos, explore). */}
+      {/* 4. WAY2NEWS STYLE FOOTER BAR (Home, News+, Reload) */}
       {(activeTab !== 'home' && activeTab !== 'feed') ? (
-        <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} />
+        <BottomNavBar
+          isTelugu={isTelugu}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onHomePress={() => {
+            setActiveTab('home');
+            reelsFeedRef.current?.scrollToIndex(0, true);
+          }}
+          onNewsPlusPress={() => setShowFilterModal(true)}
+          onReloadPress={refresh}
+          isReloading={refreshing}
+        />
       ) : showHeader ? (
         <View style={styles.bottomNavOverlay}>
-          <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} />
+          <BottomNavBar
+            isTelugu={isTelugu}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onHomePress={() => {
+              reelsFeedRef.current?.scrollToIndex(0, true);
+            }}
+            onNewsPlusPress={() => setShowFilterModal(true)}
+            onReloadPress={refresh}
+            isReloading={refreshing}
+          />
         </View>
       ) : null}
 

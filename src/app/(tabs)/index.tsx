@@ -156,9 +156,8 @@ export default function FeedTabScreen() {
         isTelugu={isTelugu}
         onFilterChange={handleFilterChange}
         onLanguageToggle={handleLanguageToggle}
-        onTunePress={() => setShowFilterModal(true)}
-        onBookmarksPress={() => {
-          router.push('/bookmarks' as any);
+        onUserPress={() => {
+          router.push('/account' as any);
         }}
       />
 

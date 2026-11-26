@@ -1,79 +1,90 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type TabKey = 'home' | 'live' | 'feed' | 'videos' | 'explore';
 
-interface BottomNavBarProps {
-  activeTab: TabKey;
-  onTabChange: (tab: TabKey) => void;
+export interface BottomNavBarProps {
+  activeTab?: TabKey;
+  onTabChange?: (tab: TabKey) => void;
+  isTelugu?: boolean;
+  onHomePress?: () => void;
+  onNewsPlusPress?: () => void;
+  onReloadPress?: () => void;
+  isReloading?: boolean;
 }
 
-export function BottomNavBar({ activeTab, onTabChange }: BottomNavBarProps) {
+export function BottomNavBar({
+  activeTab = 'home',
+  onTabChange,
+  isTelugu = true,
+  onHomePress,
+  onNewsPlusPress,
+  onReloadPress,
+  isReloading = false,
+}: BottomNavBarProps) {
   const insets = useSafeAreaInsets();
 
+  const handleHome = () => {
+    if (onHomePress) {
+      onHomePress();
+    } else if (onTabChange) {
+      onTabChange('home');
+    }
+  };
+
+  const handleNewsPlus = () => {
+    if (onNewsPlusPress) {
+      onNewsPlusPress();
+    } else if (onTabChange) {
+      onTabChange('home');
+    }
+  };
+
+  const handleReload = () => {
+    if (onReloadPress) {
+      onReloadPress();
+    }
+  };
+
   return (
-    <View style={[styles.navContainer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-      {/* 1. Home */}
+    <View style={[styles.navContainer, { paddingBottom: Math.max(insets.bottom, 6) }]}>
+      {/* 1. Left: Home (Back to Top / Home) */}
       <TouchableOpacity
-        style={styles.tabButton}
-        onPress={() => onTabChange('home')}
-        activeOpacity={0.7}>
-        <Ionicons
-          name={activeTab === 'home' ? 'home' : 'home-outline'}
-          size={24}
-          color={activeTab === 'home' ? '#FFFFFF' : '#71717A'}
-        />
+        style={styles.navItem}
+        onPress={handleHome}
+        activeOpacity={0.7}
+        hitSlop={{ top: 10, bottom: 10, left: 15, right: 15 }}
+        accessibilityLabel="Home">
+        <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+        <Text style={styles.navLabel}>{isTelugu ? 'హోమ్' : 'Home'}</Text>
       </TouchableOpacity>
 
-      {/* 2. Live */}
+      {/* 2. Middle: Creative News+ Pill Button (Custom branded touch) */}
       <TouchableOpacity
-        style={styles.tabButton}
-        onPress={() => onTabChange('live')}
-        activeOpacity={0.7}>
-        <Ionicons
-          name="radio-outline"
-          size={23}
-          color={activeTab === 'live' ? '#E50914' : '#71717A'}
-        />
+        style={styles.newsPlusPill}
+        onPress={handleNewsPlus}
+        activeOpacity={0.85}
+        accessibilityLabel="News Categories and Topics">
+        <Text style={styles.newsPlusText}>{isTelugu ? 'న్యూస్+' : 'News+'}</Text>
+        <Ionicons name="chevron-up" size={16} color="#FFFFFF" style={styles.chevronIcon} />
       </TouchableOpacity>
 
-      {/* 3. Feed Capsule Indicator */}
+      {/* 3. Right: Reload / Refresh */}
       <TouchableOpacity
-        style={styles.tabButton}
-        onPress={() => onTabChange('feed')}
-        activeOpacity={0.7}>
-        <View
-          style={[
-            styles.capsuleIcon,
-            activeTab === 'feed' ? styles.capsuleActive : styles.capsuleInactive,
-          ]}
-        />
-      </TouchableOpacity>
-
-      {/* 4. Videos */}
-      <TouchableOpacity
-        style={styles.tabButton}
-        onPress={() => onTabChange('videos')}
-        activeOpacity={0.7}>
-        <Ionicons
-          name={activeTab === 'videos' ? 'play-circle' : 'play-circle-outline'}
-          size={25}
-          color={activeTab === 'videos' ? '#FFFFFF' : '#71717A'}
-        />
-      </TouchableOpacity>
-
-      {/* 5. Explore */}
-      <TouchableOpacity
-        style={styles.tabButton}
-        onPress={() => onTabChange('explore')}
-        activeOpacity={0.7}>
-        <Ionicons
-          name={activeTab === 'explore' ? 'compass' : 'compass-outline'}
-          size={25}
-          color={activeTab === 'explore' ? '#FFFFFF' : '#71717A'}
-        />
+        style={styles.navItem}
+        onPress={handleReload}
+        disabled={isReloading}
+        activeOpacity={0.7}
+        hitSlop={{ top: 10, bottom: 10, left: 15, right: 15 }}
+        accessibilityLabel="Reload News Feed">
+        {isReloading ? (
+          <ActivityIndicator size="small" color="#FFFFFF" style={{ height: 22 }} />
+        ) : (
+          <Ionicons name="reload-outline" size={21} color="#FFFFFF" />
+        )}
+        <Text style={styles.navLabel}>{isTelugu ? 'రీలోడ్' : 'Reload'}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -83,30 +94,50 @@ const styles = StyleSheet.create({
   navContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    backgroundColor: '#09090B',
-    paddingTop: 10,
+    justifyContent: 'space-between',
+    backgroundColor: '#0E0E12',
+    paddingHorizontal: 32,
+    paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#27272a',
+    borderTopColor: '#25252B',
+    minHeight: 56,
   },
-  tabButton: {
+  navItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
     minWidth: 48,
+    gap: 3,
   },
-  capsuleIcon: {
-    width: 32,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
+  navLabel: {
+    color: '#A1A1AA',
+    fontSize: 10.5,
+    fontWeight: '600',
   },
-  capsuleActive: {
-    borderColor: '#FFFFFF',
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  // Creative News+ Pill Button
+  newsPlusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E1E24',
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    borderRadius: 22,
+    paddingHorizontal: 22,
+    paddingVertical: 7,
+    gap: 4,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  capsuleInactive: {
-    borderColor: '#71717A',
-    backgroundColor: 'transparent',
+  newsPlusText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  chevronIcon: {
+    marginLeft: 1,
   },
 });

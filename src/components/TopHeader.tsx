@@ -11,8 +11,7 @@ interface TopHeaderProps {
   isTelugu: boolean;
   onFilterChange: (filter: FeedFilterType) => void;
   onLanguageToggle: () => void;
-  onTunePress: () => void;
-  onBookmarksPress: () => void;
+  onUserPress: () => void;
 }
 
 export function TopHeader({
@@ -21,15 +20,51 @@ export function TopHeader({
   isTelugu,
   onFilterChange,
   onLanguageToggle,
-  onTunePress,
-  onBookmarksPress,
+  onUserPress,
 }: TopHeaderProps) {
   const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 8) }]}>
-      {/* 1. Brand Logo + Language Switcher Pill */}
-      <View style={styles.leftSection}>
+      {/* 1. Left: Human/User Profile Button (Opens User Settings, Name, Profile) */}
+      <TouchableOpacity
+        style={styles.userButton}
+        onPress={onUserPress}
+        activeOpacity={0.7}
+        accessibilityLabel="User Profile and Settings">
+        <Ionicons name="person-outline" size={19} color="#FFFFFF" />
+      </TouchableOpacity>
+
+      {/* 2. Center: Clean Segmented Filter Capsule (News | Unread) */}
+      <View style={styles.segmentedContainer}>
+        {/* News */}
+        <TouchableOpacity
+          style={[styles.segmentPill, activeFilter === 'latest' && styles.segmentPillActive]}
+          onPress={() => onFilterChange('latest')}
+          activeOpacity={0.8}>
+          <Text style={[styles.segmentText, activeFilter === 'latest' && styles.segmentTextActive]}>
+            {isTelugu ? 'న్యూస్' : 'News'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Unread with Red Badge */}
+        <TouchableOpacity
+          style={[styles.segmentPill, activeFilter === 'unread' && styles.segmentPillActive]}
+          onPress={() => onFilterChange('unread')}
+          activeOpacity={0.8}>
+          <Text style={[styles.segmentText, activeFilter === 'unread' && styles.segmentTextActive]}>
+            {isTelugu ? 'చదవనివి' : 'Unread'}
+          </Text>
+          {unreadCount > 0 && (
+            <View style={styles.badgeRed}>
+              <Text style={styles.badgeRedText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* 3. Right: Clean Logo + Language Switcher Pill (No flags, no hamburger menu) */}
+      <View style={styles.rightSection}>
         <Image
           source={require('../../assets/images/ntoday-official-logo.png')}
           style={styles.headerLogo}
@@ -45,61 +80,6 @@ export function TopHeader({
           <Text style={styles.langSecondaryText}>{isTelugu ? 'A' : 'తె'}</Text>
         </TouchableOpacity>
       </View>
-
-      {/* 2. Segmented Filter Pills */}
-      <View style={styles.segmentedContainer}>
-        {/* Latest */}
-        <TouchableOpacity
-          style={[styles.segmentPill, activeFilter === 'latest' && styles.segmentPillActive]}
-          onPress={() => onFilterChange('latest')}
-          activeOpacity={0.8}>
-          <Text style={[styles.segmentText, activeFilter === 'latest' && styles.segmentTextActive]}>
-            Latest
-          </Text>
-        </TouchableOpacity>
-
-        {/* Unread with Badge */}
-        <TouchableOpacity
-          style={[styles.segmentPill, activeFilter === 'unread' && styles.segmentPillActive]}
-          onPress={() => onFilterChange('unread')}
-          activeOpacity={0.8}>
-          <Text style={[styles.segmentText, activeFilter === 'unread' && styles.segmentTextActive]}>
-            Unread
-          </Text>
-          {unreadCount > 0 && (
-            <View style={styles.badgeRed}>
-              <Text style={styles.badgeRedText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
-        {/* Feedback */}
-        <TouchableOpacity
-          style={[styles.segmentPill, activeFilter === 'feedback' && styles.segmentPillActive]}
-          onPress={() => onFilterChange('feedback')}
-          activeOpacity={0.8}>
-          <Text style={[styles.segmentText, activeFilter === 'feedback' && styles.segmentTextActive]}>
-            Feedback
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* 3. Action Icons */}
-      <View style={styles.rightIconsContainer}>
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={onBookmarksPress}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="flag-outline" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={onTunePress}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="options-outline" size={21} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -109,47 +89,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingBottom: 8,
     backgroundColor: '#121214',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#26262a',
     zIndex: 10,
   },
-  leftSection: {
-    flexDirection: 'row',
+  userButton: {
+    width: 35,
+    height: 35,
+    borderRadius: 8,
+    backgroundColor: '#1E1E24',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
     alignItems: 'center',
-    gap: 8,
-  },
-  headerLogo: {
-    width: 44,
-    height: 26,
-    borderRadius: 3,
-  },
-  langPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#27272a',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 20,
-    gap: 4,
-  },
-  langBadge: {
-    backgroundColor: '#E50914',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  langBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  langSecondaryText: {
-    color: '#D4D4D8',
-    fontSize: 12,
-    fontWeight: '700',
+    justifyContent: 'center',
   },
   segmentedContainer: {
     flexDirection: 'row',
@@ -158,11 +113,13 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 3,
     gap: 2,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   segmentPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
   },
@@ -171,8 +128,8 @@ const styles = StyleSheet.create({
   },
   segmentText: {
     color: '#A1A1AA',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 12.5,
+    fontWeight: '700',
   },
   segmentTextActive: {
     color: '#09090B',
@@ -190,12 +147,39 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
   },
-  rightIconsContainer: {
+  rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
-  iconButton: {
-    padding: 4,
+  headerLogo: {
+    width: 38,
+    height: 23,
+    borderRadius: 3,
+  },
+  langPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#27272a',
+    paddingHorizontal: 7,
+    paddingVertical: 3.5,
+    borderRadius: 20,
+    gap: 3,
+  },
+  langBadge: {
+    backgroundColor: '#E50914',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  langBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+  langSecondaryText: {
+    color: '#D4D4D8',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

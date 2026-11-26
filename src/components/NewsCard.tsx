@@ -353,38 +353,31 @@ export function NewsCard({
             height={photoHeight}
             isActive={isActive}
           />
-          {/* Reporter name badge attached to bottom-left of photo with NO gap, like way2news */}
-          <View style={styles.photoReporterBadge}>
-            {/* 1. NToday News Brand (Logo + Name) */}
-            <View style={styles.photoBrandSection}>
-              <Image
-                source={require('../../assets/images/ntoday-official-logo.png')}
-                style={styles.photoReporterLogo}
-                resizeMode="contain"
-              />
-              <Text style={styles.photoReporterChannel}>NTODAY NEWS</Text>
-            </View>
+          {/* 1. Channel Brand Badge at TOP-LEFT of photo */}
+          <View style={styles.photoTopBrandBadge}>
+            <Image
+              source={require('../../assets/images/ntoday-official-logo.png')}
+              style={styles.photoTopBrandLogo}
+              resizeMode="contain"
+            />
+            <Text style={styles.photoTopBrandText}>NTODAY NEWS</Text>
+          </View>
 
-            {/* 2. Sleek Divider */}
-            <View style={styles.photoReporterDivider} />
-
-            {/* 3. Reporter Section (Broadcast Mic Symbol with N Today News Logo + Name + Desk) */}
-            <View style={styles.photoReporterSection}>
-              {/* Official Broadcast Reporter Mic with N Today News Logo */}
-              <Image
-                source={require('../../assets/images/ntoday-reporter-mic.png')}
-                style={styles.reporterMicIcon}
-                resizeMode="contain"
-              />
-              <Text style={styles.photoReporterName} numberOfLines={1}>
-                {reporterName}
+          {/* 2. Reporter Name Badge at BOTTOM-LEFT of photo (Small, sleek, with custom mic symbol) */}
+          <View style={styles.photoReporterBottomBadge}>
+            <Image
+              source={require('../../assets/images/ntoday-reporter-mic.png')}
+              style={styles.reporterMicSmallIcon}
+              resizeMode="contain"
+            />
+            <Text style={styles.photoReporterSmallName} numberOfLines={1}>
+              {reporterName}
+            </Text>
+            {showDesk && (
+              <Text style={styles.photoReporterSmallDesk} numberOfLines={1}>
+                {` • ${reporterDesk}`}
               </Text>
-              {showDesk && (
-                <Text style={styles.photoReporterDesk} numberOfLines={1}>
-                  {` • ${reporterDesk}`}
-                </Text>
-              )}
-            </View>
+            )}
           </View>
         </View>
 
@@ -470,15 +463,14 @@ export function NewsCard({
           </TouchableOpacity>
         </View>
 
-        {/* Center: Raised Round Green WhatsApp Share Button (52px) */}
+        {/* Center: Neat WhatsApp Share Button (size 36px, clean and compact) */}
         <View style={styles.centerWhatsAppContainer}>
           <TouchableOpacity
             style={styles.whatsAppCircleBtn}
             onPress={handleWhatsAppShare}
             activeOpacity={0.85}>
-            <Ionicons name="logo-whatsapp" size={30} color="#FFFFFF" />
+            <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.whatsAppLabel}>SHARE</Text>
         </View>
 
         {/* Right Group: Comment count, Three-dot menu, Blue share arrow */}
@@ -583,67 +575,67 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  // Reporter name badge attached to bottom-left of photo with NO gap, like way2news
-  photoReporterBadge: {
+  // Channel Brand Badge at TOP-LEFT of photo
+  photoTopBrandBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 4,
+    gap: 5,
+    zIndex: 10,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  photoTopBrandLogo: {
+    width: 17,
+    height: 15,
+  },
+  photoTopBrandText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  // Small Reporter badge attached to bottom-left of photo (like Way2News)
+  photoReporterBottomBadge: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(10, 10, 12, 0.88)',
-    paddingHorizontal: 9,
-    paddingVertical: 4.5,
-    borderTopRightRadius: 6,
+    backgroundColor: 'rgba(10, 10, 12, 0.84)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderTopRightRadius: 5,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
     borderTopLeftRadius: 0,
     zIndex: 10,
-    maxWidth: '92%',
-    borderWidth: 1,
+    maxWidth: '85%',
+    borderWidth: 0.8,
     borderLeftWidth: 0,
     borderBottomWidth: 0,
     borderColor: 'rgba(255, 255, 255, 0.12)',
   },
-  photoBrandSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
+  reporterMicSmallIcon: {
+    width: 16,
+    height: 16,
+    marginRight: 4,
   },
-  photoReporterLogo: {
-    width: 22,
-    height: 20,
-  },
-  photoReporterChannel: {
+  photoReporterSmallName: {
     color: '#FFFFFF',
-    fontSize: 11.5,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  photoReporterDivider: {
-    width: 1,
-    height: 13,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    marginHorizontal: 7,
-  },
-  photoReporterSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexShrink: 1,
-  },
-  reporterMicIcon: {
-    width: 22,
-    height: 22,
-    marginRight: 5,
-  },
-  photoReporterName: {
-    color: '#FFFFFF',
-    fontSize: 11.5,
+    fontSize: 10.5,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
-  photoReporterDesk: {
+  photoReporterSmallDesk: {
     color: '#A1A1AA',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '500',
   },
   // Text area starts about 10px below photo, aligned on the left
@@ -728,32 +720,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Raised WhatsApp Button in the center
+  // Compact WhatsApp Button in the center (proportionate, no overflow)
   centerWhatsAppContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -22,
     zIndex: 20,
   },
   whatsAppCircleBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#25D366',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 6,
+    elevation: 3,
     shadowColor: '#25D366',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 5,
-  },
-  whatsAppLabel: {
-    color: '#6B7280',
-    fontSize: 8.5,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-    marginTop: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
   },
   // Three-dot popup sheet
   moreMenuBackdrop: {

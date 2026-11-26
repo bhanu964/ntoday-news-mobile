@@ -35,6 +35,7 @@ export interface NewsArticle {
   category: string;
   category_id?: string;
   likesCount: number;
+  dislikesCount?: number;
   commentsCount: number;
   audioDurationSeconds: number;
   isBookmarked?: boolean;

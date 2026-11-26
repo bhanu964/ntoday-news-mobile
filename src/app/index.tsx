@@ -269,7 +269,21 @@ export default function MainAppScreen() {
       </Animated.View>
 
       {/* 3. MAIN CONTENT: REELS-STYLE VERTICAL SWIPING NEWS FEED */}
-      <View style={styles.mainContent} onLayout={handleLayout}>
+      <Animated.View
+        style={[
+          styles.mainContent,
+          {
+            transform: [
+              {
+                translateY: chromeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -56],
+                }),
+              },
+            ],
+          },
+        ]}
+        onLayout={handleLayout}>
         {containerHeight <= 0 ? (
           <View style={{ flex: 1, backgroundColor: '#121214' }} />
         ) : (
@@ -342,19 +356,19 @@ export default function MainAppScreen() {
             )}
           </>
         )}
-      </View>
+      </Animated.View>
 
       {/* 4. WAY2NEWS STYLE FOOTER BAR (Hidden by default in immersive mode; smoothly slides up on tap) */}
       <Animated.View
         pointerEvents={isChromeVisible ? 'auto' : 'none'}
         style={[
-          styles.bottomNavWrapper,
+          styles.bottomNavOverlay,
           {
             transform: [
               {
                 translateY: chromeAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [75, 0],
+                  outputRange: [90, 0],
                 }),
               },
             ],

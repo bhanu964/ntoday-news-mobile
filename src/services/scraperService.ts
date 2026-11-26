@@ -254,18 +254,18 @@ export const ScraperService = {
       );
       const district = distMatch ? cleanHtml(distMatch[1]) : '';
 
-      // 5. Reporter Name
+      // 5. Reporter Name - target the specific reporter name element accurately
       const repMatch =
-        html.match(/class="reporter-name"[^>]*>([\s\S]*?)<\/div>/i) ||
-        html.match(/class="reporter-name"[^>]*>([\s\S]*?)<\/span>/i);
+        html.match(/class="[^"]*reporter-name[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|a)>/i) ||
+        html.match(/Posted by\s*:\s*([^<\r\n]+)/i);
+      const jsonAuthor = Array.isArray(jsonLd?.author) ? jsonLd.author[0]?.name : jsonLd?.author?.name;
       const reporterName = repMatch
         ? cleanHtml(repMatch[1])
-        : jsonLd?.author?.[0]?.name || 'NToday News';
+        : jsonAuthor || 'NToday News';
 
       // 6. Reporter Area / Desk
       const areaMatch =
-        html.match(/class="reporter-area"[^>]*>([\s\S]*?)<\/div>/i) ||
-        html.match(/class="reporter-area"[^>]*>([\s\S]*?)<\/span>/i);
+        html.match(/class="[^"]*reporter-area[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|a)>/i);
       const reporterArea = areaMatch
         ? cleanHtml(areaMatch[1])
         : district
@@ -405,8 +405,9 @@ export const ScraperService = {
           imageUrl: detail.imageUrl || card.imageUrl,
           category: detail.category || 'తాజా వార్తలు',
           category_id: detail.category || 'all',
-          likesCount: Math.floor(Math.random() * 45) + 30,
-          commentsCount: Math.floor(Math.random() * 8),
+          likesCount: 0,
+          dislikesCount: 0,
+          commentsCount: 0,
           audioDurationSeconds: readTimeSec,
           publishedAt: detail.publishedAt || new Date().toISOString(),
           status: 'published',
@@ -523,8 +524,9 @@ export const ScraperService = {
         imageUrl: detail.imageUrl,
         category: detail.category,
         category_id: detail.category,
-        likesCount: 52,
-        commentsCount: 3,
+        likesCount: 0,
+        dislikesCount: 0,
+        commentsCount: 0,
         audioDurationSeconds: Math.max(25, Math.round(detail.content.length / 12)),
         publishedAt: detail.publishedAt,
         status: 'published',

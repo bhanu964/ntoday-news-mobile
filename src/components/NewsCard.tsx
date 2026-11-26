@@ -149,9 +149,10 @@ export function NewsCard({
     bodyBlockHeight,
   } = template;
 
-  const [likes, setLikes] = useState(article.likesCount);
+  const [likes, setLikes] = useState(article.likesCount || 0);
   const [hasLiked, setHasLiked] = useState(article.isLiked ?? false);
   const [hasDisliked, setHasDisliked] = useState(article.isDisliked ?? false);
+  const [dislikes, setDislikes] = useState(article.dislikesCount || 0);
   const [isBookmarked, setIsBookmarked] = useState(article.isBookmarked ?? false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(article.audioDurationSeconds);
@@ -162,13 +163,15 @@ export function NewsCard({
 
   // Sync state when article prop changes
   useEffect(() => {
-    setLikes(article.likesCount);
+    setLikes(article.likesCount || 0);
+    setDislikes(article.dislikesCount || 0);
     setHasLiked(article.isLiked ?? false);
+    setHasDisliked(article.isDisliked ?? false);
     setIsBookmarked(article.isBookmarked ?? false);
     if (article.comments) {
       setComments(article.comments);
     }
-  }, [article.id, article.likesCount, article.isLiked, article.isBookmarked, article.comments]);
+  }, [article.id, article.likesCount, article.dislikesCount, article.isLiked, article.isDisliked, article.isBookmarked, article.comments]);
 
   // Dynamic bilingual text
   const displayTitle = !isTelugu && article.title_en ? article.title_en : article.title;
@@ -222,26 +225,34 @@ export function NewsCard({
           setHasLiked(res.isLiked);
         }
       });
-      if (hasDisliked) setHasDisliked(false);
+      if (hasDisliked) {
+        setHasDisliked(false);
+        setDislikes((d) => Math.max(0, d - 1));
+      }
       return;
     }
     if (hasLiked) {
-      setLikes(likes - 1);
+      setLikes(Math.max(0, likes - 1));
       setHasLiked(false);
     } else {
       setLikes(likes + 1);
       setHasLiked(true);
-      if (hasDisliked) setHasDisliked(false);
+      if (hasDisliked) {
+        setHasDisliked(false);
+        setDislikes((d) => Math.max(0, d - 1));
+      }
     }
   };
 
   const handleDislike = () => {
     if (hasDisliked) {
       setHasDisliked(false);
+      setDislikes((d) => Math.max(0, d - 1));
     } else {
       setHasDisliked(true);
+      setDislikes((d) => d + 1);
       if (hasLiked) {
-        setLikes(likes - 1);
+        setLikes(Math.max(0, likes - 1));
         setHasLiked(false);
       }
     }
@@ -474,21 +485,25 @@ export function NewsCard({
               size={19}
               color={hasLiked ? theme.brandRedBright : theme.iconColor}
             />
-            <Text style={[styles.actionCountText, { color: hasLiked ? theme.brandRedBright : theme.iconColor }]}>
-              {formatCount(likes)}
-            </Text>
+            {likes > 0 ? (
+              <Text style={[styles.actionCountText, { color: hasLiked ? theme.brandRedBright : theme.iconColor }]}>
+                {formatCount(likes)}
+              </Text>
+            ) : null}
           </TouchableOpacity>
 
-          {/* Dislike */}
+          {/* Dislike - completely removed hardcoded fake 39 count */}
           <TouchableOpacity style={styles.actionItemRow} onPress={handleDislike} activeOpacity={0.7}>
             <Ionicons
               name={hasDisliked ? 'thumbs-down' : 'thumbs-down-outline'}
               size={19}
               color={hasDisliked ? theme.brandRedBright : theme.iconColor}
             />
-            <Text style={[styles.actionCountText, { color: hasDisliked ? theme.brandRedBright : theme.iconColor }]}>
-              {hasDisliked ? '1' : '39'}
-            </Text>
+            {dislikes > 0 ? (
+              <Text style={[styles.actionCountText, { color: hasDisliked ? theme.brandRedBright : theme.iconColor }]}>
+                {formatCount(dislikes)}
+              </Text>
+            ) : null}
           </TouchableOpacity>
         </View>
 
@@ -504,12 +519,14 @@ export function NewsCard({
 
         {/* Right Group: Comment count, Three-dot menu, Blue share arrow */}
         <View style={styles.rightActionGroup}>
-          {/* Comment with count */}
+          {/* Comment with count (hidden if zero) */}
           <TouchableOpacity style={styles.actionItemRow} onPress={() => setShowCommentsModal(true)} activeOpacity={0.7}>
             <Ionicons name="chatbubble-outline" size={19} color={theme.iconColor} />
-            <Text style={[styles.actionCountText, { color: theme.iconColor }]}>
-              {comments.length}
-            </Text>
+            {comments.length > 0 ? (
+              <Text style={[styles.actionCountText, { color: theme.iconColor }]}>
+                {comments.length}
+              </Text>
+            ) : null}
           </TouchableOpacity>
 
           {/* Three-dot menu */}

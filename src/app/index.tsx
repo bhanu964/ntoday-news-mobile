@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Animated,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,13 +49,24 @@ export default function MainAppScreen() {
   // Unread snapshot list & layout measurement
   const [unreadSessionIds, setUnreadSessionIds] = useState<string[]>([]);
   const [containerHeight, setContainerHeight] = useState<number>(0);
-  const [showHeader, setShowHeader] = useState<boolean>(false);
   const reelsFeedRef = useRef<ReelsFeedRef>(null);
 
-  // Toggle header display on screen click (Way2News style)
-  const handleToggleHeader = React.useCallback(() => {
-    setShowHeader((prev) => !prev);
-  }, []);
+  // Immersive Mode Animation (TopHeader & BottomNavBar hidden by default, slide in/out smoothly on tap)
+  const chromeAnim = useRef(new Animated.Value(0)).current;
+  const [isChromeVisible, setIsChromeVisible] = useState<boolean>(false);
+
+  // Smooth slide toggle for top header & bottom nav bar on screen click
+  const handleToggleChrome = useCallback(() => {
+    setIsChromeVisible((prev) => {
+      const next = !prev;
+      Animated.timing(chromeAnim, {
+        toValue: next ? 1 : 0,
+        duration: 260,
+        useNativeDriver: true,
+      }).start();
+      return next;
+    });
+  }, [chromeAnim]);
 
   // Hooks for Data & Services
   const {
@@ -124,8 +136,15 @@ export default function MainAppScreen() {
     if (!article.isRead) {
       markArticleAsRead(article.id);
     }
-    // Auto-hide header when user swipes to next story (Way2News behavior)
-    setShowHeader(false);
+    // Auto-hide navigation chrome when user swipes to next story (Way2News behavior)
+    if (isChromeVisible) {
+      setIsChromeVisible(false);
+      Animated.timing(chromeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
   };
 
   // Handle header filter clicks
@@ -202,36 +221,52 @@ export default function MainAppScreen() {
       <View style={{ height: insets.top, backgroundColor: '#000000', width: '100%' }} />
       <StatusBar style="light" />
 
-      {/* 1. TOP HEADER OVERLAY (Hidden on app open; displayed when user taps the screen, like Way2News) */}
-      {showHeader && (activeTab === 'home' || activeTab === 'feed') && (
-        <View style={styles.headerOverlay}>
-          <View style={styles.headerOverlayInner}>
-            <TopHeader
-              activeFilter={activeFilter}
-              unreadCount={unreadCount}
-              isTelugu={isTelugu}
-              onFilterChange={handleFilterChange}
-              onLanguageToggle={handleLanguageToggle}
-              onUserPress={() => setShowAccountModal(true)}
-            />
-            {/* ACTIVE FILTER STATUS CHIP (When Category or Bookmarks are applied) */}
-            {(selectedCategory !== 'all' || showOnlyBookmarks) && activeTab === 'home' && (
-              <View style={styles.activeFilterBanner}>
-                <Text style={styles.activeFilterText}>
-                  {showOnlyBookmarks ? t.savedBookmarksBanner : `${t.categoryBanner}${selectedCategory}`}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setSelectedCategory('all');
-                    setShowOnlyBookmarks(false);
-                  }}>
-                  <Ionicons name="close-circle" size={18} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+      {/* 1. TOP HEADER OVERLAY (Hidden on app open; smoothly slides down on single-tap, like Way2News) */}
+      <Animated.View
+        pointerEvents={isChromeVisible && (activeTab === 'home' || activeTab === 'feed') ? 'auto' : 'none'}
+        style={[
+          styles.headerOverlay,
+          {
+            transform: [
+              {
+                translateY: chromeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-100, 0],
+                }),
+              },
+            ],
+            opacity: chromeAnim.interpolate({
+              inputRange: [0, 0.2, 1],
+              outputRange: [0, 0.5, 1],
+            }),
+          },
+        ]}>
+        <View style={styles.headerOverlayInner}>
+          <TopHeader
+            activeFilter={activeFilter}
+            unreadCount={unreadCount}
+            isTelugu={isTelugu}
+            onFilterChange={handleFilterChange}
+            onLanguageToggle={handleLanguageToggle}
+            onUserPress={() => setShowAccountModal(true)}
+          />
+          {/* ACTIVE FILTER STATUS CHIP (When Category or Bookmarks are applied) */}
+          {(selectedCategory !== 'all' || showOnlyBookmarks) && activeTab === 'home' && (
+            <View style={styles.activeFilterBanner}>
+              <Text style={styles.activeFilterText}>
+                {showOnlyBookmarks ? t.savedBookmarksBanner : `${t.categoryBanner}${selectedCategory}`}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setSelectedCategory('all');
+                  setShowOnlyBookmarks(false);
+                }}>
+                <Ionicons name="close-circle" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-      )}
+      </Animated.View>
 
       {/* 3. MAIN CONTENT: REELS-STYLE VERTICAL SWIPING NEWS FEED */}
       <View style={styles.mainContent} onLayout={handleLayout}>
@@ -276,7 +311,7 @@ export default function MainAppScreen() {
                   onActiveIndexChange={handleActiveIndexChange}
                   onLoadMore={loadMore}
                   onToggleLike={toggleLike}
-                  onCardPress={handleToggleHeader}
+                  onCardPress={handleToggleChrome}
                 />
               ))}
 
@@ -292,7 +327,7 @@ export default function MainAppScreen() {
                 onActiveIndexChange={handleActiveIndexChange}
                 onLoadMore={loadMore}
                 onToggleLike={toggleLike}
-                onCardPress={handleToggleHeader}
+                onCardPress={handleToggleChrome}
               />
             )}
 
@@ -309,19 +344,39 @@ export default function MainAppScreen() {
         )}
       </View>
 
-      {/* 4. WAY2NEWS STYLE FOOTER BAR (Home, News+, Reload) */}
-      <BottomNavBar
-        isTelugu={isTelugu}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        onHomePress={() => {
-          setActiveTab('home');
-          reelsFeedRef.current?.scrollToIndex(0, true);
-        }}
-        onNewsPlusPress={() => setShowFilterModal(true)}
-        onReloadPress={handleReload}
-        isReloading={refreshing}
-      />
+      {/* 4. WAY2NEWS STYLE FOOTER BAR (Hidden by default in immersive mode; smoothly slides up on tap) */}
+      <Animated.View
+        pointerEvents={isChromeVisible ? 'auto' : 'none'}
+        style={[
+          styles.bottomNavWrapper,
+          {
+            transform: [
+              {
+                translateY: chromeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [75, 0],
+                }),
+              },
+            ],
+            opacity: chromeAnim.interpolate({
+              inputRange: [0, 0.2, 1],
+              outputRange: [0, 0.5, 1],
+            }),
+          },
+        ]}>
+        <BottomNavBar
+          isTelugu={isTelugu}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onHomePress={() => {
+            setActiveTab('home');
+            reelsFeedRef.current?.scrollToIndex(0, true);
+          }}
+          onNewsPlusPress={() => setShowFilterModal(true)}
+          onReloadPress={handleReload}
+          isReloading={refreshing}
+        />
+      </Animated.View>
 
       {/* 5. FEEDBACK MODAL (Opens on Feedback button click) */}
       <FeedbackModal
@@ -438,6 +493,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
+  },
+  bottomNavWrapper: {
+    width: '100%',
+    backgroundColor: '#0E0E12',
+    overflow: 'hidden',
   },
   bottomNavOverlay: {
     position: 'absolute',

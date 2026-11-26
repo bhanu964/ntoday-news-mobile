@@ -22,6 +22,7 @@ export const APP_CONFIG = {
     userLikes: '@ntoday_likes_v1',
     language: '@ntoday_language_v1',
     deviceId: '@ntoday_device_id_v1',
+    userProfile: '@ntoday_user_profile_v1',
     settings: '@ntoday_settings_v1',
   },
 } as const;

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_CONFIG } from '@/config/appConfig';
+import { UserProfile } from '@/types/user';
 
 /**
  * Storage Service handles client-side offline persistence via AsyncStorage.
@@ -121,6 +122,35 @@ export const StorageService = {
       await AsyncStorage.setItem(APP_CONFIG.storageKeys.language, lang);
     } catch (e) {
       console.warn('[Storage] Failed to save language:', e);
+    }
+  },
+
+  // 6. User Profile (Mobile ID, OTP verified name & details)
+  async getUserProfile(): Promise<UserProfile | null> {
+    if (isServer) return null;
+    try {
+      const raw = await AsyncStorage.getItem(APP_CONFIG.storageKeys.userProfile);
+      return raw ? (JSON.parse(raw) as UserProfile) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async saveUserProfile(profile: UserProfile): Promise<void> {
+    if (isServer) return;
+    try {
+      await AsyncStorage.setItem(APP_CONFIG.storageKeys.userProfile, JSON.stringify(profile));
+    } catch (e) {
+      console.warn('[Storage] Failed to save user profile:', e);
+    }
+  },
+
+  async clearUserProfile(): Promise<void> {
+    if (isServer) return;
+    try {
+      await AsyncStorage.removeItem(APP_CONFIG.storageKeys.userProfile);
+    } catch (e) {
+      console.warn('[Storage] Failed to clear user profile:', e);
     }
   },
 };

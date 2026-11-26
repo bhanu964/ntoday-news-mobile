@@ -423,7 +423,7 @@ export function NewsCard({
                   lineHeight: bodyLineHeight,
                 },
               ]}
-              numberOfLines={effectiveHeight < 660 ? 6 : effectiveHeight < 760 ? 7 : 9}>
+              numberOfLines={effectiveHeight < 660 ? 8 : effectiveHeight < 760 ? 11 : 14}>
               {displayBody}
             </Text>
           </View>

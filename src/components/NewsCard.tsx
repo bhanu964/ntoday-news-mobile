@@ -322,7 +322,9 @@ export function NewsCard({
     return String(count);
   };
 
-  const reporterName = article.authorName || article.authorDesk || 'Desk Reporter';
+  const reporterName = article.authorName || 'Srinivas';
+  const reporterDesk = article.authorDesk || 'Desk';
+  const showDesk = reporterDesk && !reporterName.toLowerCase().includes(reporterDesk.toLowerCase());
 
   return (
     <View
@@ -353,14 +355,33 @@ export function NewsCard({
           />
           {/* Reporter name badge attached to bottom-left of photo with NO gap, like way2news */}
           <View style={styles.photoReporterBadge}>
-            <Image
-              source={require('../../assets/images/ntoday-official-logo.png')}
-              style={styles.photoReporterLogo}
-              resizeMode="contain"
-            />
-            <Text style={styles.photoReporterText} numberOfLines={1}>
-              {reporterName}
-            </Text>
+            {/* 1. NToday News Brand (Logo + Name) */}
+            <View style={styles.photoBrandSection}>
+              <Image
+                source={require('../../assets/images/ntoday-official-logo.png')}
+                style={styles.photoReporterLogo}
+                resizeMode="contain"
+              />
+              <Text style={styles.photoReporterChannel}>NTODAY NEWS</Text>
+            </View>
+
+            {/* 2. Sleek Divider */}
+            <View style={styles.photoReporterDivider} />
+
+            {/* 3. Reporter Section (Mic Disc + Name + Desk) */}
+            <View style={styles.photoReporterSection}>
+              <View style={styles.reporterMicDisc}>
+                <Ionicons name="mic" size={10} color="#FFFFFF" />
+              </View>
+              <Text style={styles.photoReporterName} numberOfLines={1}>
+                {reporterName}
+              </Text>
+              {showDesk && (
+                <Text style={styles.photoReporterDesk} numberOfLines={1}>
+                  {` • ${reporterDesk}`}
+                </Text>
+              )}
+            </View>
           </View>
         </View>
 
@@ -563,29 +584,68 @@ const styles = StyleSheet.create({
   photoReporterBadge: {
     position: 'absolute',
     bottom: 0,
-    left: 4,
+    left: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    paddingHorizontal: 7,
-    paddingVertical: 3.5,
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
+    backgroundColor: 'rgba(10, 10, 12, 0.88)',
+    paddingHorizontal: 9,
+    paddingVertical: 4.5,
+    borderTopRightRadius: 6,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
-    gap: 5,
+    borderTopLeftRadius: 0,
     zIndex: 10,
-    maxWidth: 180,
+    maxWidth: '92%',
+    borderWidth: 1,
+    borderLeftWidth: 0,
+    borderBottomWidth: 0,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  photoBrandSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   photoReporterLogo: {
-    width: 13,
-    height: 13,
+    width: 22,
+    height: 20,
   },
-  photoReporterText: {
+  photoReporterChannel: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 11.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  photoReporterDivider: {
+    width: 1,
+    height: 13,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    marginHorizontal: 7,
+  },
+  photoReporterSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+  },
+  reporterMicDisc: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#E50914',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4.5,
+  },
+  photoReporterName: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
     fontWeight: '700',
     letterSpacing: 0.2,
+  },
+  photoReporterDesk: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontWeight: '500',
   },
   // Text area starts about 10px below photo, aligned on the left
   contentContainer: {

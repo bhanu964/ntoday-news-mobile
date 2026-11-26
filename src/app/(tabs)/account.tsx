@@ -19,7 +19,7 @@ export default function AccountTabScreen() {
       <AccountView
         isTelugu={isTelugu}
         onBack={() => {
-          router.push('/(tabs)');
+          router.push('/' as any);
         }}
       />
     </View>

@@ -158,7 +158,7 @@ export default function FeedTabScreen() {
         onLanguageToggle={handleLanguageToggle}
         onTunePress={() => setShowFilterModal(true)}
         onBookmarksPress={() => {
-          router.push('/(tabs)/bookmarks');
+          router.push('/bookmarks' as any);
         }}
       />
 

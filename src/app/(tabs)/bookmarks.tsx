@@ -106,7 +106,7 @@ export default function BookmarksTabScreen() {
             </Text>
             <TouchableOpacity
               style={styles.browseBtn}
-              onPress={() => router.push('/(tabs)')}>
+              onPress={() => router.push('/' as any)}>
               <Text style={styles.browseBtnText}>
                 {isTelugu ? 'తాజా వార్తలను చూడండి' : 'Browse Latest News'}
               </Text>

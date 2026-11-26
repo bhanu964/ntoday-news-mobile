@@ -17,14 +17,14 @@ export default function ExploreTabScreen() {
 
   const handleStorySelect = (story: TopStory) => {
     if (story.id) {
-      router.push({ pathname: '/news/[id]', params: { id: story.id } });
+      router.push({ pathname: '/news/[id]', params: { id: story.id } } as any);
     } else {
-      router.push('/(tabs)');
+      router.push('/' as any);
     }
   };
 
   const handleOpenAccount = () => {
-    router.push('/(tabs)/account');
+    router.push('/account' as any);
   };
 
   return (

@@ -3,6 +3,7 @@ import { APP_CONFIG } from '@/config/appConfig';
 import { NewsArticle, TopStory, NewsCategory } from '@/types/news';
 import { ArticleRow, CategoryRow } from '@/types/database';
 import { MOCK_NEWS_ARTICLES, TOP_STORIES } from '@/data/mockNews';
+import { ScraperService } from './scraperService';
 
 export interface FetchArticlesParams {
   channelId?: string;
@@ -11,6 +12,7 @@ export interface FetchArticlesParams {
   limit?: number;
   isBreaking?: boolean;
   searchQuery?: string;
+  forceRefresh?: boolean;
 }
 
 export interface FetchArticlesResult {
@@ -79,7 +81,27 @@ export const ArticlesService = {
     const limit = params.limit ?? APP_CONFIG.articlesPerPage;
     const offset = (page - 1) * limit;
 
+    // 1. Direct Web Scraping (No shared DB / No API keys required)
     if (!isSupabaseReady() || !supabase) {
+      try {
+        const liveArticles = await ScraperService.fetchLiveArticles({
+          categoryId: params.categoryId,
+          limit: params.limit || 20,
+          forceRefresh: params.forceRefresh,
+        });
+
+        if (liveArticles && liveArticles.length > 0) {
+          return {
+            articles: liveArticles,
+            hasMore: false,
+            total: liveArticles.length,
+            isFallback: false,
+          };
+        }
+      } catch (err) {
+        console.warn('[ArticlesService] Live scraper failed, using fallback:', err);
+      }
+
       return ArticlesService.getFallbackArticles(params);
     }
 
@@ -112,7 +134,24 @@ export const ArticlesService = {
 
       if (error || !data || data.length === 0) {
         if (page === 1) {
-          console.warn('[ArticlesService] Remote empty or error, using mock fallback:', error?.message);
+          // If Supabase table is empty, gracefully pull live scraped news from the website
+          try {
+            const liveArticles = await ScraperService.fetchLiveArticles({
+              categoryId: params.categoryId,
+              limit: params.limit || 20,
+              forceRefresh: params.forceRefresh,
+            });
+            if (liveArticles && liveArticles.length > 0) {
+              return {
+                articles: liveArticles,
+                hasMore: false,
+                total: liveArticles.length,
+                isFallback: false,
+              };
+            }
+          } catch {
+            // Fall through to mock below
+          }
           return ArticlesService.getFallbackArticles(params);
         }
         return {
@@ -135,7 +174,23 @@ export const ArticlesService = {
         isFallback: false,
       };
     } catch (err) {
-      console.warn('[ArticlesService] Fetch error, falling back to mock:', err);
+      console.warn('[ArticlesService] Fetch error, attempting live scraper:', err);
+      try {
+        const liveArticles = await ScraperService.fetchLiveArticles({
+          categoryId: params.categoryId,
+          limit: params.limit || 20,
+        });
+        if (liveArticles && liveArticles.length > 0) {
+          return {
+            articles: liveArticles,
+            hasMore: false,
+            total: liveArticles.length,
+            isFallback: false,
+          };
+        }
+      } catch {
+        // Fallback to mock
+      }
       return ArticlesService.getFallbackArticles(params);
     }
   },
@@ -184,7 +239,7 @@ export const ArticlesService = {
   },
 
   /**
-   * Fetch an individual article by ID from Supabase or fallback mock data.
+   * Fetch an individual article by ID from Supabase, live scraper, or fallback mock data.
    */
   async fetchArticleById(id: string): Promise<NewsArticle | null> {
     if (isSupabaseReady() && supabase) {
@@ -203,6 +258,14 @@ export const ArticlesService = {
       }
     }
 
+    // Try live scraper by slug/ID
+    try {
+      const scraped = await ScraperService.fetchArticleBySlug(id);
+      if (scraped) return scraped;
+    } catch {
+      // Fallback below
+    }
+
     // Search local fallback mock articles
     const mock = MOCK_NEWS_ARTICLES.find((a) => a.id === id);
     if (mock) {
@@ -216,70 +279,94 @@ export const ArticlesService = {
    * Fetch Top Stories for Explore screen.
    */
   async fetchTopStories(): Promise<TopStory[]> {
-    if (!isSupabaseReady() || !supabase) {
-      return TOP_STORIES;
-    }
+    if (isSupabaseReady() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('articles')
+          .select('*')
+          .eq('channel_id', APP_CONFIG.channelId)
+          .eq('status', 'published')
+          .order('like_count', { ascending: false })
+          .limit(5);
 
-    try {
-      const { data, error } = await supabase
-        .from('articles')
-        .select('*')
-        .eq('channel_id', APP_CONFIG.channelId)
-        .eq('status', 'published')
-        .order('like_count', { ascending: false })
-        .limit(5);
-
-      if (error || !data || data.length === 0) {
-        return TOP_STORIES;
+        if (!error && data && data.length > 0) {
+          return (data as ArticleRow[]).map((row, idx) => ({
+            rank: idx + 1,
+            id: row.id,
+            title: row.title,
+            title_en: row.title_en || undefined,
+            excerpt: row.summary || row.content.slice(0, 90) + '...',
+            excerpt_en: row.summary_en || (row.content_en ? row.content_en.slice(0, 90) + '...' : undefined),
+            imageUrl: row.image_url,
+            timeAgo: formatTimeAgo(row.published_at),
+            category: row.category_id,
+            views: `${Math.max(10, (row.like_count + 1) * 3 + 12)}.${idx + 1}K`,
+          }));
+        }
+      } catch {
+        // Fall through to scraper below
       }
-
-      return (data as ArticleRow[]).map((row, idx) => ({
-        rank: idx + 1,
-        id: row.id,
-        title: row.title,
-        title_en: row.title_en || undefined,
-        excerpt: row.summary || row.content.slice(0, 90) + '...',
-        excerpt_en: row.summary_en || (row.content_en ? row.content_en.slice(0, 90) + '...' : undefined),
-        imageUrl: row.image_url,
-        timeAgo: formatTimeAgo(row.published_at),
-        category: row.category_id,
-        views: `${Math.max(10, (row.like_count + 1) * 3 + 12)}.${idx + 1}K`,
-      }));
-    } catch {
-      return TOP_STORIES;
     }
+
+    // Pull from live scraped articles
+    try {
+      const live = await ScraperService.fetchLiveArticles({ limit: 5 });
+      if (live && live.length > 0) {
+        return live.map((a, idx) => ({
+          rank: idx + 1,
+          id: a.id,
+          title: a.title,
+          excerpt: a.summary || a.content.slice(0, 90) + '...',
+          imageUrl: a.imageUrl,
+          timeAgo: a.timeAgo,
+          category: a.category,
+          views: `${(a.likesCount * 3 + 15)}K`,
+        }));
+      }
+    } catch {
+      // Fallback to TOP_STORIES
+    }
+
+    return TOP_STORIES;
   },
 
   /**
-   * Fetch Categories from Supabase or fallback.
+   * Fetch Categories from live scraper, Supabase or fallback.
    */
   async fetchCategories(): Promise<NewsCategory[]> {
-    if (!isSupabaseReady() || !supabase) {
-      return defaultCategories;
-    }
-
     try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('channel_id', APP_CONFIG.channelId)
-        .order('sort_order', { ascending: true });
-
-      if (error || !data || data.length === 0) {
-        return defaultCategories;
+      const liveCats = await ScraperService.fetchCategories();
+      if (liveCats && liveCats.length > 0) {
+        return liveCats;
       }
-
-      return (data as CategoryRow[]).map((c) => ({
-        id: c.id,
-        name: c.name,
-        name_en: c.name_en,
-        slug: c.slug,
-        icon: c.icon || 'apps',
-        sort_order: c.sort_order,
-      }));
     } catch {
-      return defaultCategories;
+      // Fallback below
     }
+
+    if (isSupabaseReady() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('channel_id', APP_CONFIG.channelId)
+          .order('sort_order', { ascending: true });
+
+        if (!error && data && data.length > 0) {
+          return (data as CategoryRow[]).map((c) => ({
+            id: c.id,
+            name: c.name,
+            name_en: c.name_en,
+            slug: c.slug,
+            icon: c.icon || 'apps',
+            sort_order: c.sort_order,
+          }));
+        }
+      } catch {
+        // Fallback below
+      }
+    }
+
+    return defaultCategories;
   },
 };
 

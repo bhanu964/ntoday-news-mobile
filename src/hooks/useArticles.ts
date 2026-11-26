@@ -73,6 +73,7 @@ export function useArticles(options: UseArticlesOptions = {}) {
         isBreaking,
         searchQuery,
         page: pageNum,
+        forceRefresh: isRefresh,
       };
 
       try {

@@ -305,34 +305,18 @@ export default function MainAppScreen() {
       </View>
 
       {/* 4. WAY2NEWS STYLE FOOTER BAR (Home, News+, Reload) */}
-      {(activeTab !== 'home' && activeTab !== 'feed') ? (
-        <BottomNavBar
-          isTelugu={isTelugu}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          onHomePress={() => {
-            setActiveTab('home');
-            reelsFeedRef.current?.scrollToIndex(0, true);
-          }}
-          onNewsPlusPress={() => setShowFilterModal(true)}
-          onReloadPress={refresh}
-          isReloading={refreshing}
-        />
-      ) : showHeader ? (
-        <View style={styles.bottomNavOverlay}>
-          <BottomNavBar
-            isTelugu={isTelugu}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            onHomePress={() => {
-              reelsFeedRef.current?.scrollToIndex(0, true);
-            }}
-            onNewsPlusPress={() => setShowFilterModal(true)}
-            onReloadPress={refresh}
-            isReloading={refreshing}
-          />
-        </View>
-      ) : null}
+      <BottomNavBar
+        isTelugu={isTelugu}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onHomePress={() => {
+          setActiveTab('home');
+          reelsFeedRef.current?.scrollToIndex(0, true);
+        }}
+        onNewsPlusPress={() => setShowFilterModal(true)}
+        onReloadPress={refresh}
+        isReloading={refreshing}
+      />
 
       {/* 5. FEEDBACK MODAL (Opens on Feedback button click) */}
       <FeedbackModal

@@ -15,6 +15,7 @@ export interface NewsArticle {
   cardIndex: number;
   totalCards: number;
   authorName: string;
+  authorName_en?: string;
   authorDesk: string;
   authorDesk_en?: string;
   authorAvatar?: string;

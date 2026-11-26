@@ -56,6 +56,7 @@ export function FullArticleModal({
           content_en: enriched.content_en,
           category_en: enriched.category_en,
           authorDesk_en: enriched.authorDesk_en,
+          authorName_en: enriched.authorName_en,
         });
       }
     });
@@ -116,7 +117,11 @@ export function FullArticleModal({
     });
   };
 
-  const rawAuthor = (effectiveArticle.authorName || '').trim();
+  const rawAuthor = (
+    (!isTelugu ? effectiveArticle.authorName_en : effectiveArticle.authorName) ||
+    effectiveArticle.authorName ||
+    ''
+  ).trim();
   const rawDesk = (
     (!isTelugu ? effectiveArticle.authorDesk_en : effectiveArticle.authorDesk) ||
     effectiveArticle.authorDesk ||

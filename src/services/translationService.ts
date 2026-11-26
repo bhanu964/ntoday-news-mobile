@@ -210,7 +210,7 @@ export const TranslationService = {
   },
 
   /**
-   * Translates headline, category, desk, summary and content for an article and returns an enriched copy.
+   * Translates headline, category, reporter name/desk, summary and content for an article and returns an enriched copy.
    */
   async translateArticle(article: NewsArticle): Promise<NewsArticle> {
     const needsTitle = !article.title_en && this.hasTeluguScript(article.title);
@@ -218,12 +218,13 @@ export const TranslationService = {
     const needsSummary = !article.summary_en && this.hasTeluguScript(article.summary);
     const needsCategory = !article.category_en && this.hasTeluguScript(article.category);
     const needsDesk = !article.authorDesk_en && this.hasTeluguScript(article.authorDesk);
+    const needsAuthor = !article.authorName_en && this.hasTeluguScript(article.authorName);
 
-    if (!needsTitle && !needsContent && !needsSummary && !needsCategory && !needsDesk) {
+    if (!needsTitle && !needsContent && !needsSummary && !needsCategory && !needsDesk && !needsAuthor) {
       return article;
     }
 
-    const [titleEn, contentEn, summaryEn, categoryEn, deskEn] = await Promise.all([
+    const [titleEn, contentEn, summaryEn, categoryEn, deskEn, authorEn] = await Promise.all([
       needsTitle ? this.translateToEnglish(article.title) : Promise.resolve(article.title_en || article.title),
       needsContent ? this.translateToEnglish(article.content) : Promise.resolve(article.content_en || article.content),
       needsSummary
@@ -233,6 +234,7 @@ export const TranslationService = {
         : Promise.resolve(article.summary_en || article.summary || ''),
       needsCategory ? this.translateCategory(article.category) : Promise.resolve(article.category_en || article.category),
       needsDesk ? this.translateToEnglish(article.authorDesk) : Promise.resolve(article.authorDesk_en || article.authorDesk),
+      needsAuthor ? this.translateToEnglish(article.authorName) : Promise.resolve(article.authorName_en || article.authorName),
     ]);
 
     const resolvedSummaryEn = summaryEn || (contentEn ? contentEn.slice(0, 1200) : titleEn);
@@ -244,6 +246,7 @@ export const TranslationService = {
       summary_en: resolvedSummaryEn,
       category_en: categoryEn || article.category,
       authorDesk_en: deskEn || article.authorDesk,
+      authorName_en: authorEn || article.authorName,
     };
   },
 };

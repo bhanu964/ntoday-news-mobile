@@ -149,7 +149,7 @@ export function NewsCard({
   } = template;
 
   // Dynamic exact body line count so text fills available vertical space without ever overlapping the Read More pill
-  const reservedChromeHeight = 56 + photoHeight + 46 + 40 + (2 * headlineLineHeight + 6);
+  const reservedChromeHeight = 60 + photoHeight + 46 + 40 + (2 * headlineLineHeight + 6);
   const availableBodyHeight = Math.max(80, effectiveHeight - reservedChromeHeight);
   const maxBodyLines = Math.max(4, Math.floor(availableBodyHeight / bodyLineHeight));
 
@@ -196,6 +196,7 @@ export function NewsCard({
             summary_en: enriched.summary_en,
             category_en: enriched.category_en,
             authorDesk_en: enriched.authorDesk_en,
+            authorName_en: enriched.authorName_en,
           });
         }
       })
@@ -381,7 +382,11 @@ export function NewsCard({
   };
 
   // In the bottom-left photo badge, display actual reporter name from live website
-  const rawAuthor = (effectiveArticle.authorName || '').trim();
+  const rawAuthor = (
+    (!isTelugu ? effectiveArticle.authorName_en : effectiveArticle.authorName) ||
+    effectiveArticle.authorName ||
+    ''
+  ).trim();
   const rawDesk = (
     (!isTelugu ? effectiveArticle.authorDesk_en : effectiveArticle.authorDesk) ||
     effectiveArticle.authorDesk ||
@@ -417,7 +422,7 @@ export function NewsCard({
       {/* Interactive Card Body: Tap anywhere on photo, text, or meta to toggle header */}
       <Pressable
         onPress={onCardPress}
-        style={[styles.cardInteractiveBody, { height: effectiveHeight - 56 }]}>
+        style={[styles.cardInteractiveBody, { height: effectiveHeight - 60 }]}>
         {/* 1. UPPER SECTION: FIXED PHOTO/VIDEO (Exact height = photoHeight, full width, cover) */}
         <View
           style={[
@@ -495,7 +500,9 @@ export function NewsCard({
               onPress={() => setShowFullArticleModal(true)}
               activeOpacity={0.75}
               hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
-              <Text style={styles.readMorePillText}>{t.readMore}</Text>
+              <Text style={styles.readMorePillText} numberOfLines={1} maxFontSizeMultiplier={1.15}>
+                {t.readMore}
+              </Text>
               <Ionicons name="arrow-forward-circle" size={16} color="#E50914" />
             </TouchableOpacity>
             {isTranslating && !isTelugu && (
@@ -508,18 +515,18 @@ export function NewsCard({
         <View style={styles.metaRow}>
           <View style={styles.metaLeft}>
             <Ionicons name="time-outline" size={13} color={theme.textMuted} />
-            <Text style={[styles.metaTimeText, { color: theme.textMuted }]}>
+            <Text style={[styles.metaTimeText, { color: theme.textMuted }]} numberOfLines={1} maxFontSizeMultiplier={1.15}>
               {formatMetaTime(article.publishedAt, article.timeAgo)}
               {isExternalSource ? ` · ${sourceName}` : ''}
             </Text>
           </View>
-          <Text style={[styles.metaPagesText, { color: theme.textMuted }]}>
-            {currentIndex} of {totalCards} {isTelugu ? 'Pages' : 'Pages'}
+          <Text style={[styles.metaPagesText, { color: theme.textMuted }]} numberOfLines={1} maxFontSizeMultiplier={1.15}>
+            {currentIndex} of {totalCards} {t.pagesLabel}
           </Text>
         </View>
       </Pressable>
 
-      {/* 5. FIXED ACTION BAR (Fixed at bottom of card, white/theme surface, thin top border) */}
+      {/* 5. FIXED SYMMETRICAL ACTION BAR (Even spacing, prominently centered WhatsApp CTA, uniform vertical center) */}
       <View
         style={[
           styles.actionToolbar,
@@ -528,54 +535,55 @@ export function NewsCard({
             borderTopColor: theme.border,
           },
         ]}>
-        {/* Left Group: Thumbs Up & Thumbs Down with Counts */}
+        {/* Left Equal Half (flex: 1, space-evenly): Like & Dislike */}
         <View style={styles.leftActionGroup}>
           {/* Like */}
           <TouchableOpacity style={styles.actionItemRow} onPress={handleLike} activeOpacity={0.7}>
             <Ionicons
               name={hasLiked ? 'thumbs-up' : 'thumbs-up-outline'}
-              size={19}
+              size={20}
               color={hasLiked ? theme.brandRedBright : theme.iconColor}
             />
             {likes > 0 ? (
-              <Text style={[styles.actionCountText, { color: hasLiked ? theme.brandRedBright : theme.iconColor }]}>
+              <Text style={[styles.actionCountText, { color: hasLiked ? theme.brandRedBright : theme.iconColor }]} maxFontSizeMultiplier={1.1}>
                 {formatCount(likes)}
               </Text>
             ) : null}
           </TouchableOpacity>
 
-          {/* Dislike - completely removed hardcoded fake 39 count */}
+          {/* Dislike - only show real count if > 0 */}
           <TouchableOpacity style={styles.actionItemRow} onPress={handleDislike} activeOpacity={0.7}>
             <Ionicons
               name={hasDisliked ? 'thumbs-down' : 'thumbs-down-outline'}
-              size={19}
+              size={20}
               color={hasDisliked ? theme.brandRedBright : theme.iconColor}
             />
             {dislikes > 0 ? (
-              <Text style={[styles.actionCountText, { color: hasDisliked ? theme.brandRedBright : theme.iconColor }]}>
+              <Text style={[styles.actionCountText, { color: hasDisliked ? theme.brandRedBright : theme.iconColor }]} maxFontSizeMultiplier={1.1}>
                 {formatCount(dislikes)}
               </Text>
             ) : null}
           </TouchableOpacity>
         </View>
 
-        {/* Center: Neat WhatsApp Share Button (size 36px, clean and compact) */}
+        {/* Exact Center: Prominent Emphasized WhatsApp Share CTA (size 44px, larger 25px icon) */}
         <View style={styles.centerWhatsAppContainer}>
           <TouchableOpacity
             style={styles.whatsAppCircleBtn}
             onPress={handleWhatsAppShare}
-            activeOpacity={0.85}>
-            <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+            activeOpacity={0.85}
+            accessibilityLabel="Share via WhatsApp">
+            <Ionicons name="logo-whatsapp" size={25} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
-        {/* Right Group: Comment count, Three-dot menu, Blue share arrow */}
+        {/* Right Equal Half (flex: 1, space-evenly): Comment, Three-dot Menu, Share */}
         <View style={styles.rightActionGroup}>
           {/* Comment with count (hidden if zero) */}
           <TouchableOpacity style={styles.actionItemRow} onPress={() => setShowCommentsModal(true)} activeOpacity={0.7}>
-            <Ionicons name="chatbubble-outline" size={19} color={theme.iconColor} />
+            <Ionicons name="chatbubble-outline" size={20} color={theme.iconColor} />
             {comments.length > 0 ? (
-              <Text style={[styles.actionCountText, { color: theme.iconColor }]}>
+              <Text style={[styles.actionCountText, { color: theme.iconColor }]} maxFontSizeMultiplier={1.1}>
                 {comments.length}
               </Text>
             ) : null}
@@ -787,8 +795,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     backgroundColor: '#1E1E24',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     borderRadius: 16,
     gap: 6,
     marginTop: 6,
@@ -798,9 +806,9 @@ const styles = StyleSheet.create({
   },
   readMorePillText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '700',
-    letterSpacing: 0.2,
+    includeFontPadding: false,
   },
   // Meta Row just above action bar (pinned at bottom: 0 of interactive body, height: 32)
   metaRow: {
@@ -812,7 +820,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingLeft: 12,
+    paddingLeft: 14,
     paddingRight: 14,
     zIndex: 5,
   },
@@ -820,73 +828,89 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+    flexShrink: 1,
   },
   metaTimeText: {
     fontSize: 12,
     fontWeight: '500',
+    includeFontPadding: false,
   },
   metaPagesText: {
     fontSize: 12,
     fontWeight: '500',
+    includeFontPadding: false,
   },
-  // Fixed Action Bar (pinned at bottom: 0 of card, height: 56)
+  // Fixed Symmetrical Action Bar (pinned at bottom: 0 of card, height: 60)
   actionToolbar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 56,
+    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingLeft: 12,
-    paddingRight: 14,
+    paddingHorizontal: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     zIndex: 10,
   },
   leftActionGroup: {
+    flex: 1,
+    height: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    justifyContent: 'space-evenly',
   },
   rightActionGroup: {
+    flex: 1,
+    height: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    justifyContent: 'space-evenly',
   },
   actionItemRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 5,
-    minHeight: 36,
+    minWidth: 40,
+    height: 44,
+    paddingHorizontal: 4,
   },
   actionCountText: {
     fontSize: 12,
     fontWeight: '600',
+    includeFontPadding: false,
   },
   iconBtn: {
-    padding: 4,
+    minWidth: 38,
+    height: 44,
+    paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Compact WhatsApp Button in the center (proportionate, no overflow)
+  // Centered & Emphasized Primary WhatsApp CTA Button (exact 50% width center)
   centerWhatsAppContainer: {
+    width: 60,
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 20,
   },
   whatsAppCircleBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#25D366',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 3,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    elevation: 4,
     shadowColor: '#25D366',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
   },
   // Three-dot popup sheet
   moreMenuBackdrop: {

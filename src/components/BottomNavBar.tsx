@@ -76,15 +76,17 @@ export function BottomNavBar({
         style={styles.navItem}
         onPress={handleReload}
         disabled={isReloading}
-        activeOpacity={0.7}
-        hitSlop={{ top: 10, bottom: 10, left: 15, right: 15 }}
+        activeOpacity={0.6}
+        hitSlop={{ top: 12, bottom: 12, left: 20, right: 20 }}
         accessibilityLabel="Reload News Feed">
         {isReloading ? (
-          <ActivityIndicator size="small" color="#FFFFFF" style={{ height: 22 }} />
+          <ActivityIndicator size="small" color="#E50914" style={{ height: 22 }} />
         ) : (
-          <Ionicons name="reload-outline" size={21} color="#FFFFFF" />
+          <Ionicons name="reload" size={21} color="#FFFFFF" />
         )}
-        <Text style={styles.navLabel}>{isTelugu ? 'రీలోడ్' : 'Reload'}</Text>
+        <Text style={[styles.navLabel, isReloading && { color: '#E50914' }]}>
+          {isReloading ? (isTelugu ? 'లోడింగ్...' : 'Loading...') : (isTelugu ? 'రీలోడ్' : 'Reload')}
+        </Text>
       </TouchableOpacity>
     </View>
   );

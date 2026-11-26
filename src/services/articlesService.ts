@@ -84,17 +84,18 @@ export const ArticlesService = {
     // 1. Direct Web Scraping (No shared DB / No API keys required)
     if (!isSupabaseReady() || !supabase) {
       try {
-        const liveArticles = await ScraperService.fetchLiveArticles({
+        const liveResult = await ScraperService.fetchLiveArticles({
+          page,
           categoryId: params.categoryId,
-          limit: params.limit || 20,
+          limit,
           forceRefresh: params.forceRefresh,
         });
 
-        if (liveArticles && liveArticles.length > 0) {
+        if (liveResult && liveResult.articles.length > 0) {
           return {
-            articles: liveArticles,
-            hasMore: false,
-            total: liveArticles.length,
+            articles: liveResult.articles,
+            hasMore: liveResult.hasMore,
+            total: liveResult.total,
             isFallback: false,
           };
         }
@@ -136,16 +137,17 @@ export const ArticlesService = {
         if (page === 1) {
           // If Supabase table is empty, gracefully pull live scraped news from the website
           try {
-            const liveArticles = await ScraperService.fetchLiveArticles({
+            const liveResult = await ScraperService.fetchLiveArticles({
+              page,
               categoryId: params.categoryId,
-              limit: params.limit || 20,
+              limit,
               forceRefresh: params.forceRefresh,
             });
-            if (liveArticles && liveArticles.length > 0) {
+            if (liveResult && liveResult.articles.length > 0) {
               return {
-                articles: liveArticles,
-                hasMore: false,
-                total: liveArticles.length,
+                articles: liveResult.articles,
+                hasMore: liveResult.hasMore,
+                total: liveResult.total,
                 isFallback: false,
               };
             }
@@ -176,15 +178,17 @@ export const ArticlesService = {
     } catch (err) {
       console.warn('[ArticlesService] Fetch error, attempting live scraper:', err);
       try {
-        const liveArticles = await ScraperService.fetchLiveArticles({
+        const liveResult = await ScraperService.fetchLiveArticles({
+          page,
           categoryId: params.categoryId,
-          limit: params.limit || 20,
+          limit,
+          forceRefresh: params.forceRefresh,
         });
-        if (liveArticles && liveArticles.length > 0) {
+        if (liveResult && liveResult.articles.length > 0) {
           return {
-            articles: liveArticles,
-            hasMore: false,
-            total: liveArticles.length,
+            articles: liveResult.articles,
+            hasMore: liveResult.hasMore,
+            total: liveResult.total,
             isFallback: false,
           };
         }
@@ -310,9 +314,9 @@ export const ArticlesService = {
 
     // Pull from live scraped articles
     try {
-      const live = await ScraperService.fetchLiveArticles({ limit: 5 });
-      if (live && live.length > 0) {
-        return live.map((a, idx) => ({
+      const liveResult = await ScraperService.fetchLiveArticles({ limit: 5 });
+      if (liveResult && liveResult.articles.length > 0) {
+        return liveResult.articles.map((a, idx) => ({
           rank: idx + 1,
           id: a.id,
           title: a.title,

@@ -124,7 +124,13 @@ export function useArticles(options: UseArticlesOptions = {}) {
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchArticlesData(1, true);
+    try {
+      await fetchArticlesData(1, true);
+    } catch (err) {
+      console.warn('[useArticles] Refresh error:', err);
+    } finally {
+      setRefreshing(false);
+    }
   }, [fetchArticlesData]);
 
   const loadMore = useCallback(async () => {

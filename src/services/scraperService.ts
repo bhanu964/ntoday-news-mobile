@@ -5,7 +5,7 @@ import { MOCK_NEWS_ARTICLES } from '@/data/mockNews';
 const BASE_URL = 'https://ntodaynews.com';
 const STORAGE_KEY_ARTICLES = '@ntoday_live_articles_v1';
 const STORAGE_KEY_TIMESTAMP = '@ntoday_live_articles_timestamp';
-const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes cache validity
+const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes cache validity
 
 // Helper to decode HTML entities and strip unwanted tags
 function cleanHtml(rawHtml?: string | null): string {
@@ -26,12 +26,31 @@ function cleanHtml(rawHtml?: string | null): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/\r\n/g, '\n')
-    .replace(/\n\s*\n+/g, '\n\n')
+    .replace(/\n\s*\n+/g, '\n') // Single newline to prevent awkward blank lines
+    .replace(/[ \t]+/g, ' ')
     .trim();
 }
 
-// Fetch with strict timeout helper to prevent hanging on weak mobile connections
-async function fetchWithTimeout(url: string, timeoutMs: number = 4500): Promise<string> {
+// Generate clean summary without cutting mid-word
+function generateSnippet(fullText: string, targetLength: number = 220): string {
+  if (!fullText) return '';
+  const singleLine = fullText.replace(/\n+/g, ' ').trim();
+  if (singleLine.length <= targetLength) return singleLine;
+
+  const slice = singleLine.slice(0, targetLength);
+  // Find last space or punctuation mark
+  const lastSpace = slice.lastIndexOf(' ');
+  const lastPeriod = slice.lastIndexOf('.');
+  const cutIndex = Math.max(lastPeriod > 100 ? lastPeriod + 1 : -1, lastSpace);
+
+  if (cutIndex > 100) {
+    return slice.slice(0, cutIndex).trim();
+  }
+  return slice.trim();
+}
+
+// Fetch with strict timeout helper
+async function fetchWithTimeout(url: string, timeoutMs: number = 5500): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -90,7 +109,7 @@ export const ScraperService = {
    * Fast extraction of all article cards available on the website homepage
    */
   async scrapeHomepageCards(): Promise<ScrapedCardSummary[]> {
-    const html = await fetchWithTimeout(`${BASE_URL}/`, 6000);
+    const html = await fetchWithTimeout(`${BASE_URL}/`, 6500);
     const cardRegex = /<a\s+href="(https:\/\/ntodaynews\.com\/[a-zA-Z0-9\-]+)"[^>]*>([\s\S]*?)<\/a>/g;
     let match: RegExpExecArray | null;
 
@@ -141,6 +160,63 @@ export const ScraperService = {
   },
 
   /**
+   * Scrapes historical older news chronologically for infinite scrolling (page 2, 3, 4...)
+   */
+  async scrapePaginatedCards(page: number, categoryId?: string): Promise<ScrapedCardSummary[]> {
+    try {
+      let pageUrl = `${BASE_URL}/trending?page_latest=${page}`;
+      if (categoryId && categoryId !== 'all') {
+        const catMap: Record<string, number> = {
+          'ఆంధ్రప్రదేశ్': 161,
+          ap: 161,
+          'తెలంగాణ': 1,
+          telangana: 1,
+          'రాజకీయాలు': 162,
+          politics: 162,
+          'క్రైమ్': 163,
+          crime: 163,
+          'సినిమా': 2,
+          cinema: 2,
+          'క్రీడలు': 3,
+          sports: 3,
+        };
+        const catNum = catMap[categoryId.toLowerCase()] || 1;
+        pageUrl = `${BASE_URL}/category/${catNum}?page=${page}`;
+      }
+
+      const html = await fetchWithTimeout(pageUrl, 6500);
+      const cardRegex = /<div class="col-md-6 mb-3">([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/g;
+      let m: RegExpExecArray | null;
+      const cards: ScrapedCardSummary[] = [];
+      const seen = new Set<string>();
+
+      while ((m = cardRegex.exec(html)) !== null) {
+        const block = m[1];
+        const urlMatch = block.match(/href="(https:\/\/ntodaynews\.com\/[a-zA-Z0-9\-]+)"/);
+        const imgMatch = block.match(/src="([^"]+)"/);
+        const titleMatch = block.match(/<h6[^>]*>([\s\S]*?)<\/h6>/);
+        const dateMatch = block.match(/<small[^>]*>[\s\S]*?<\/i>\s*([^<]+)<\/small>/);
+
+        if (urlMatch && titleMatch && !seen.has(urlMatch[1])) {
+          seen.add(urlMatch[1]);
+          cards.push({
+            url: urlMatch[1],
+            slug: urlMatch[1].replace(`${BASE_URL}/`, ''),
+            imageUrl: normalizeImageUrl(imgMatch ? imgMatch[1] : ''),
+            title: cleanHtml(titleMatch[1]),
+            rawDate: dateMatch ? cleanHtml(dateMatch[1]) : undefined,
+          });
+        }
+      }
+
+      return cards;
+    } catch (err) {
+      console.warn(`[ScraperService] Failed to scrape page ${page}:`, err);
+      return [];
+    }
+  },
+
+  /**
    * Scrapes the full story text, reporter information, and district for an individual article URL
    */
   async scrapeArticleDetail(
@@ -149,7 +225,7 @@ export const ScraperService = {
     fallbackImg: string
   ): Promise<ScrapedArticleDetail> {
     try {
-      const html = await fetchWithTimeout(url, 4000);
+      const html = await fetchWithTimeout(url, 4500);
 
       // 1. JSON-LD Structured Data
       let jsonLd: any = null;
@@ -208,7 +284,7 @@ export const ScraperService = {
       const contentMatch = html.match(/<div class="news-content">([\s\S]*?)<\/div>\s*<\/div>/i);
       let content = contentMatch ? cleanHtml(contentMatch[1]) : '';
       if (!content && jsonLd?.description) {
-        content = jsonLd.description;
+        content = cleanHtml(jsonLd.description);
       }
       if (!content) {
         content = title;
@@ -241,17 +317,18 @@ export const ScraperService = {
   },
 
   /**
-   * Fetch all live articles from ntodaynews.com with intelligent caching & concurrency batching.
+   * Fetch live articles from ntodaynews.com with pagination support & caching
    */
   async fetchLiveArticles(options: {
+    page?: number;
     forceRefresh?: boolean;
     categoryId?: string;
     limit?: number;
-  } = {}): Promise<NewsArticle[]> {
-    const { forceRefresh = false, categoryId, limit = 20 } = options;
+  } = {}): Promise<{ articles: NewsArticle[]; hasMore: boolean; total: number }> {
+    const { page = 1, forceRefresh = false, categoryId, limit = 15 } = options;
 
-    // 1. Check local offline cache first if not explicitly forced to refresh
-    if (!forceRefresh) {
+    // 1. Check local offline cache first ONLY for page 1 when not force-refreshing
+    if (page === 1 && !forceRefresh) {
       try {
         const cachedRaw = await AsyncStorage.getItem(STORAGE_KEY_ARTICLES);
         const timestampRaw = await AsyncStorage.getItem(STORAGE_KEY_TIMESTAMP);
@@ -259,7 +336,12 @@ export const ScraperService = {
           const cachedArticles: NewsArticle[] = JSON.parse(cachedRaw);
           const age = Date.now() - (timestampRaw ? parseInt(timestampRaw, 10) : 0);
           if (cachedArticles.length > 0 && age < CACHE_TTL_MS) {
-            return this.filterArticles(cachedArticles, categoryId, limit);
+            const filtered = this.filterArticles(cachedArticles, categoryId, limit);
+            return {
+              articles: filtered,
+              hasMore: true,
+              total: 500,
+            };
           }
         }
       } catch (e) {
@@ -268,14 +350,22 @@ export const ScraperService = {
     }
 
     try {
-      // 2. Scrape live homepage cards
-      const cards = await this.scrapeHomepageCards();
-      if (!cards || cards.length === 0) {
-        throw new Error('No articles found on homepage');
+      // 2. Fetch cards: Page 1 uses Homepage; Page >= 2 uses Paginated trending
+      let cards: ScrapedCardSummary[] = [];
+      if (page === 1) {
+        cards = await this.scrapeHomepageCards();
+      } else {
+        cards = await this.scrapePaginatedCards(page, categoryId);
       }
 
-      // Pick the top batch to scrape in detail
-      const targetCards = cards.slice(0, Math.max(limit, 16));
+      if (!cards || cards.length === 0) {
+        if (page > 1) {
+          return { articles: [], hasMore: false, total: 0 };
+        }
+        throw new Error('No articles found');
+      }
+
+      const targetCards = cards.slice(0, Math.max(limit, 12));
 
       // 3. Batch parallel execution with concurrency of 5
       const batchSize = 5;
@@ -294,11 +384,12 @@ export const ScraperService = {
         const card = targetCards[idx];
         const wordCount = detail.content.length;
         const readTimeSec = Math.max(25, Math.min(60, Math.round(wordCount / 12)));
+        const summary = generateSnippet(detail.content, 220);
 
         return {
-          id: card.slug || `live-${idx + 1}`,
-          cardIndex: idx + 1,
-          totalCards: scrapedDetails.length,
+          id: card.slug || `live-p${page}-${idx + 1}`,
+          cardIndex: (page - 1) * limit + idx + 1,
+          totalCards: (page - 1) * limit + scrapedDetails.length,
           authorName: detail.reporterName || 'NToday News',
           authorDesk: detail.reporterArea || (detail.district ? `${detail.district} డెస్క్` : 'DESK'),
           authorAvatar: detail.reporterAvatar,
@@ -308,13 +399,13 @@ export const ScraperService = {
           externalId: card.slug,
           timeAgo: card.rawDate || 'Just now',
           title: detail.title || card.title,
-          summary: detail.content.slice(0, 160) + '...',
+          summary,
           content: detail.content,
           mediaType: 'image',
           imageUrl: detail.imageUrl || card.imageUrl,
           category: detail.category || 'తాజా వార్తలు',
           category_id: detail.category || 'all',
-          likesCount: Math.floor(Math.random() * 45) + 30, // Natural realistic engagement
+          likesCount: Math.floor(Math.random() * 45) + 30,
           commentsCount: Math.floor(Math.random() * 8),
           audioDurationSeconds: readTimeSec,
           publishedAt: detail.publishedAt || new Date().toISOString(),
@@ -323,32 +414,50 @@ export const ScraperService = {
         };
       });
 
-      // 5. Save fresh articles into persistent AsyncStorage
-      try {
-        await AsyncStorage.setItem(STORAGE_KEY_ARTICLES, JSON.stringify(articles));
-        await AsyncStorage.setItem(STORAGE_KEY_TIMESTAMP, Date.now().toString());
-      } catch (e) {
-        console.warn('[ScraperService] Failed to cache articles:', e);
+      // 5. Cache Page 1 fresh articles into persistent AsyncStorage
+      if (page === 1) {
+        try {
+          await AsyncStorage.setItem(STORAGE_KEY_ARTICLES, JSON.stringify(articles));
+          await AsyncStorage.setItem(STORAGE_KEY_TIMESTAMP, Date.now().toString());
+        } catch (e) {
+          console.warn('[ScraperService] Failed to cache articles:', e);
+        }
       }
 
-      return this.filterArticles(articles, categoryId, limit);
+      const filtered = this.filterArticles(articles, categoryId, limit);
+      return {
+        articles: filtered,
+        hasMore: true,
+        total: 500,
+      };
     } catch (err) {
       console.warn('[ScraperService] Live scrape failed, trying cache or mock fallback:', err);
 
       // Attempt reading cache even if expired
-      try {
-        const cachedRaw = await AsyncStorage.getItem(STORAGE_KEY_ARTICLES);
-        if (cachedRaw) {
-          const cachedArticles: NewsArticle[] = JSON.parse(cachedRaw);
-          if (cachedArticles.length > 0) {
-            return this.filterArticles(cachedArticles, categoryId, limit);
+      if (page === 1) {
+        try {
+          const cachedRaw = await AsyncStorage.getItem(STORAGE_KEY_ARTICLES);
+          if (cachedRaw) {
+            const cachedArticles: NewsArticle[] = JSON.parse(cachedRaw);
+            if (cachedArticles.length > 0) {
+              const filtered = this.filterArticles(cachedArticles, categoryId, limit);
+              return {
+                articles: filtered,
+                hasMore: true,
+                total: cachedArticles.length,
+              };
+            }
           }
+        } catch {
+          // Fallback to MOCK_NEWS_ARTICLES below
         }
-      } catch {
-        // Fallback to MOCK_NEWS_ARTICLES below
       }
 
-      return this.filterArticles(MOCK_NEWS_ARTICLES, categoryId, limit);
+      return {
+        articles: this.filterArticles(MOCK_NEWS_ARTICLES, categoryId, limit),
+        hasMore: false,
+        total: MOCK_NEWS_ARTICLES.length,
+      };
     }
   },
 
@@ -408,6 +517,7 @@ export const ScraperService = {
         sourceUrl: url,
         timeAgo: 'Today',
         title: detail.title,
+        summary: generateSnippet(detail.content, 220),
         content: detail.content,
         mediaType: 'image',
         imageUrl: detail.imageUrl,

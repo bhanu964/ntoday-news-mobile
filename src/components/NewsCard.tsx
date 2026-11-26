@@ -20,6 +20,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MediaViewer } from './MediaViewer';
 import { CommentsModal } from './CommentsModal';
+import { FullArticleModal } from './FullArticleModal';
 
 export interface TemplateMetrics {
   photoRatio: number;
@@ -50,20 +51,20 @@ export interface TemplateMetrics {
  */
 export function computeCardTemplate(pageHeight: number): TemplateMetrics {
   const isShortScreen = pageHeight < 660;
-  const photoRatio = isShortScreen ? 0.33 : 0.40;
-  const headlineFontSize = isShortScreen ? 18 : 19.5;
-  const headlineLineHeight = isShortScreen ? 25 : 28;
-  const bodyFontSize = isShortScreen ? 14.5 : 16;
-  const bodyLineHeight = isShortScreen ? 22 : 25;
+  const photoRatio = isShortScreen ? 0.33 : 0.39;
+  const headlineFontSize = isShortScreen ? 17.5 : 18.5;
+  const headlineLineHeight = isShortScreen ? 24 : 25.5;
+  const bodyFontSize = isShortScreen ? 14 : 15;
+  const bodyLineHeight = isShortScreen ? 21.5 : 23;
 
-  const topPadding = 10;      // 10px under photo
-  const headlineGap = 6;      // 6px between headline and body
+  const topPadding = 8;       // 8px under photo
+  const headlineGap = 4;      // 4px between headline and body
   const metaHeight = 32;      // meta row
   const actionHeight = 56;    // action bar
 
   const photoHeight = Math.round(pageHeight * photoRatio);
   const headlineBlockHeight = 2 * headlineLineHeight;
-  const bodyBlockHeight = 10 * bodyLineHeight;
+  const bodyBlockHeight = 8 * bodyLineHeight;
 
   const photoTop = 0;
   const photoBottom = photoHeight;
@@ -156,6 +157,7 @@ export function NewsCard({
   const [secondsLeft, setSecondsLeft] = useState(article.audioDurationSeconds);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showFullArticleModal, setShowFullArticleModal] = useState(false);
   const [comments, setComments] = useState<NewsComment[]>(article.comments || []);
 
   // Sync state when article prop changes
@@ -170,10 +172,15 @@ export function NewsCard({
 
   // Dynamic bilingual text
   const displayTitle = !isTelugu && article.title_en ? article.title_en : article.title;
-  // Use summary for the card body (up to 10 lines), fallback to content
-  const displayBody = !isTelugu
-    ? (article.summary_en || article.summary || article.content_en || article.content)
-    : (article.summary || article.content);
+  // Clean body preview: remove multiple consecutive newlines to eliminate empty vertical gaps
+  const rawBody = !isTelugu
+    ? (article.summary_en || article.summary || article.content_en || article.content || '')
+    : (article.summary || article.content || '');
+  const displayBody = rawBody
+    .replace(/\r\n/g, '\n')
+    .replace(/\n\s*\n+/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
 
   // Check if article is from an external source to display in meta row
   const sourceName = article.sourceName || article.sourceCredit || '';
@@ -381,9 +388,9 @@ export function NewsCard({
           </View>
         </View>
 
-        {/* 2. TEXT AREA: HEADLINE (MAX 2 LINES) + BODY (UP TO 10 LINES) */}
+        {/* 2. TEXT AREA: HEADLINE (MAX 2 LINES) + BODY PREVIEW + READ MORE PILL */}
         <View style={styles.contentContainer}>
-          {/* Headline: natural height up to 2 lines; when 1 line, body starts directly below with no extra gap */}
+          {/* Headline */}
           <Text
             style={[
               styles.headlineText,
@@ -397,7 +404,7 @@ export function NewsCard({
             {displayTitle}
           </Text>
 
-          {/* Body Text: starts on the same left alignment directly under headline, up to 10 lines */}
+          {/* Body Preview Text */}
           <Text
             style={[
               styles.bodyText,
@@ -407,9 +414,21 @@ export function NewsCard({
                 lineHeight: bodyLineHeight,
               },
             ]}
-            numberOfLines={10}>
+            numberOfLines={5}>
             {displayBody}
           </Text>
+
+          {/* Highly Visible Read More Button */}
+          <TouchableOpacity
+            style={styles.readMorePill}
+            onPress={() => setShowFullArticleModal(true)}
+            activeOpacity={0.75}
+            hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
+            <Text style={styles.readMorePillText}>
+              {isTelugu ? 'మరింత చదవండి' : 'Read Full Story'}
+            </Text>
+            <Ionicons name="arrow-forward-circle" size={16} color="#E50914" />
+          </TouchableOpacity>
         </View>
 
         {/* 3. META ROW: Fixed height 32, pinned just above action bar at bottom: 0 of interactive body */}
@@ -554,6 +573,16 @@ export function NewsCard({
         onClose={() => setShowCommentsModal(false)}
         onAddComment={handleAddNewComment}
       />
+
+      {/* 7. FULL ARTICLE SCROLLABLE MODAL */}
+      <FullArticleModal
+        visible={showFullArticleModal}
+        article={article}
+        isTelugu={isTelugu}
+        onClose={() => setShowFullArticleModal(false)}
+        onBookmarkChange={onBookmarkChange}
+        isBookmarked={isBookmarked}
+      />
     </View>
   );
 }
@@ -638,20 +667,41 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
   },
-  // Text area starts about 10px below photo, aligned on the left
+  // Text area starts about 8px below photo, neatly aligned on the left
   contentContainer: {
-    paddingLeft: 12,
+    paddingLeft: 14,
     paddingRight: 14,
-    paddingTop: 10,
+    paddingTop: 8,
     justifyContent: 'flex-start',
     overflow: 'hidden',
   },
   headlineText: {
-    fontWeight: '700',
-    marginBottom: 6,
+    fontWeight: '800',
+    marginBottom: 4,
+    letterSpacing: 0.1,
   },
   bodyText: {
     fontWeight: '400',
+    letterSpacing: 0.1,
+  },
+  readMorePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#1E1E24',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
+    gap: 6,
+    marginTop: 8,
+    borderWidth: 0.8,
+    borderColor: '#3F3F46',
+  },
+  readMorePillText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   // Meta Row just above action bar (pinned at bottom: 0 of interactive body, height: 32)
   metaRow: {

@@ -191,6 +191,11 @@ export default function MainAppScreen() {
     StorageService.setLanguage(next ? 'te' : 'en');
   };
 
+  const handleReload = useCallback(async () => {
+    reelsFeedRef.current?.scrollToIndex(0, true);
+    await refresh();
+  }, [refresh]);
+
   return (
     <View style={styles.container}>
       {/* Solid black status bar area – photo starts cleanly below it, like Way2News */}
@@ -314,7 +319,7 @@ export default function MainAppScreen() {
           reelsFeedRef.current?.scrollToIndex(0, true);
         }}
         onNewsPlusPress={() => setShowFilterModal(true)}
-        onReloadPress={refresh}
+        onReloadPress={handleReload}
         isReloading={refreshing}
       />
 

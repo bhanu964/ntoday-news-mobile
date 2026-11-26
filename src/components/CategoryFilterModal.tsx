@@ -1,56 +1,73 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArticlesService } from '@/services/articlesService';
 import { NewsCategory } from '@/types/news';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface CategoryFilterModalProps {
   visible: boolean;
   selectedCategory: string;
   isTelugu?: boolean;
-  onSelectCategory: (category: string) => void;
+  onSelectCategory: (categoryId: string, categoryObj?: NewsCategory) => void;
   onClose: () => void;
 }
-
-export const DEFAULT_NEWS_CATEGORIES = [
-  { id: 'all', name: 'అన్నీ (All Stories)', name_en: 'All Stories', icon: 'apps' },
-  { id: 'రాజకీయాలు', name: 'రాజకీయాలు (Politics)', name_en: 'Politics', icon: 'megaphone' },
-  { id: 'క్రైమ్', name: 'క్రైమ్ (Crime)', name_en: 'Crime', icon: 'shield-alert' },
-  { id: 'వాతావరణం', name: 'వాతావరణం (Weather)', name_en: 'Weather', icon: 'cloudy-night' },
-  { id: 'బిజినెస్', name: 'బిజినెస్ (Business)', name_en: 'Business', icon: 'trending-up' },
-  { id: 'విద్య', name: 'విద్య & ఉద్యోగాలు (Jobs & Education)', name_en: 'Jobs & Education', icon: 'school' },
-  { id: 'తెలంగాణ', name: 'తెలంగాణ (Telangana)', name_en: 'Telangana', icon: 'location' },
-  { id: 'సినిమా', name: 'సినిమా (Cinema)', name_en: 'Cinema', icon: 'film' },
-  { id: 'క్రీడలు', name: 'క్రీడలు (Sports)', name_en: 'Sports', icon: 'football' },
-  { id: 'వ్యవసాయం', name: 'వ్యవసాయం (Agriculture)', name_en: 'Agriculture', icon: 'leaf' },
-  { id: 'టెక్నాలజీ', name: 'టెక్నాలజీ (Tech & ISRO)', name_en: 'Tech & ISRO', icon: 'rocket' },
-] as const;
 
 export function CategoryFilterModal({
   visible,
   selectedCategory,
-  isTelugu = true,
+  isTelugu: propIsTelugu,
   onSelectCategory,
   onClose,
 }: CategoryFilterModalProps) {
   const insets = useSafeAreaInsets();
-  const [categories, setCategories] = useState<Array<{ id: string; name: string; name_en?: string; icon?: string }>>(
-    [...DEFAULT_NEWS_CATEGORIES]
-  );
+  const { isTelugu: ctxIsTelugu, t } = useLanguage();
+  const isTelugu = propIsTelugu !== undefined ? propIsTelugu : ctxIsTelugu;
 
-  useEffect(() => {
-    ArticlesService.fetchCategories().then((cats) => {
+  const [categories, setCategories] = useState<NewsCategory[]>([
+    { id: 'all', name: 'అన్నీ', name_en: 'All Stories', slug: 'all', icon: 'apps' },
+  ]);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const loadLiveCategories = useCallback(async (forceRefresh = false) => {
+    setLoading(true);
+    try {
+      const cats = await ArticlesService.fetchCategories(forceRefresh);
       if (cats && cats.length > 0) {
-        // Ensure 'all' is always first
         const hasAll = cats.some((c) => c.id === 'all');
-        const formatted = hasAll
+        const formatted: NewsCategory[] = hasAll
           ? cats
-          : [{ id: 'all', name: 'అన్నీ (All Stories)', name_en: 'All Stories', slug: 'all', icon: 'apps' }, ...cats];
+          : [
+              { id: 'all', name: 'అన్నీ', name_en: 'All Stories', slug: 'all', icon: 'apps' },
+              ...cats,
+            ];
         setCategories(formatted);
       }
-    });
+    } catch {
+      // Keep existing categories cleanly
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadLiveCategories(false);
+  }, [loadLiveCategories]);
+
+  useEffect(() => {
+    if (visible && categories.length <= 1) {
+      loadLiveCategories(true);
+    }
+  }, [visible, categories.length, loadLiveCategories]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -59,49 +76,62 @@ export function CategoryFilterModal({
           <View style={styles.header}>
             <View style={styles.dragHandle} />
             <View style={styles.headerRow}>
-              <Text style={styles.title}>
-                {isTelugu ? 'కేటగిరీలు ఎంచుకోండి (Categories)' : 'Select Categories'}
-              </Text>
+              <Text style={styles.title}>{t.categoriesTitle}</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
                 <Ionicons name="close" size={22} color="#A1A1AA" />
               </TouchableOpacity>
             </View>
           </View>
 
-          <ScrollView contentContainerStyle={styles.list}>
-            {categories.map((cat) => {
-              const isSelected = selectedCategory === cat.id;
-              const displayName = isTelugu ? cat.name : cat.name_en || cat.name;
+          {loading && categories.length <= 1 ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator size="small" color="#E50914" />
+              <Text style={styles.loadingText}>{t.loadingCategories}</Text>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={styles.list}>
+              {categories.map((cat) => {
+                const isSelected =
+                  selectedCategory === cat.id ||
+                  selectedCategory === cat.slug ||
+                  selectedCategory === cat.name;
+                const displayName =
+                  cat.id === 'all'
+                    ? t.allCategories
+                    : isTelugu
+                    ? cat.name
+                    : cat.name_en || cat.name;
 
-              return (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[styles.categoryItem, isSelected && styles.categoryItemActive]}
-                  onPress={() => {
-                    onSelectCategory(cat.id);
-                    onClose();
-                  }}>
-                  <View style={styles.categoryLeft}>
-                    <View
-                      style={[
-                        styles.iconCircle,
-                        isSelected ? styles.iconCircleActive : styles.iconCircleInactive,
-                      ]}>
-                      <Ionicons
-                        name={(cat.icon || 'apps') as any}
-                        size={18}
-                        color={isSelected ? '#FFFFFF' : '#A1A1AA'}
-                      />
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[styles.categoryItem, isSelected && styles.categoryItemActive]}
+                    onPress={() => {
+                      onSelectCategory(cat.id, cat);
+                      onClose();
+                    }}>
+                    <View style={styles.categoryLeft}>
+                      <View
+                        style={[
+                          styles.iconCircle,
+                          isSelected ? styles.iconCircleActive : styles.iconCircleInactive,
+                        ]}>
+                        <Ionicons
+                          name={(cat.icon || 'newspaper-outline') as any}
+                          size={18}
+                          color={isSelected ? '#FFFFFF' : '#A1A1AA'}
+                        />
+                      </View>
+                      <Text style={[styles.categoryName, isSelected && styles.categoryNameActive]}>
+                        {displayName}
+                      </Text>
                     </View>
-                    <Text style={[styles.categoryName, isSelected && styles.categoryNameActive]}>
-                      {displayName}
-                    </Text>
-                  </View>
-                  {isSelected && <Ionicons name="checkmark-circle" size={22} color="#E50914" />}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+                    {isSelected && <Ionicons name="checkmark-circle" size={22} color="#E50914" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
         </View>
       </View>
     </Modal>
@@ -152,6 +182,16 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     padding: 6,
+  },
+  loadingBox: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    gap: 10,
+  },
+  loadingText: {
+    color: '#A1A1AA',
+    fontSize: 13,
+    fontWeight: '600',
   },
   list: {
     padding: 16,

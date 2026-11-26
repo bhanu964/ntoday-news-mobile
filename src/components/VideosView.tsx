@@ -5,12 +5,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MOCK_NEWS_ARTICLES } from '@/data/mockNews';
 import { ArticlesService } from '@/services/articlesService';
 import { NewsArticle } from '@/types/news';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface VideosViewProps {
   isTelugu?: boolean;
 }
 
-export function VideosView({ isTelugu = true }: VideosViewProps) {
+export function VideosView({ isTelugu: propIsTelugu }: VideosViewProps) {
+  const { isTelugu: ctxIsTelugu, t } = useLanguage();
+  const isTelugu = propIsTelugu !== undefined ? propIsTelugu : ctxIsTelugu;
   const { height: windowHeight } = useWindowDimensions();
   const [currentVideo, setCurrentVideo] = useState<NewsArticle>(
     MOCK_NEWS_ARTICLES.find((a) => a.videoUrl) || MOCK_NEWS_ARTICLES[0]

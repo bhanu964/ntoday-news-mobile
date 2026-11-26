@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NewsComment } from '@/types/news';
 import { CommentsService } from '@/services/commentsService';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface CommentsModalProps {
   visible: boolean;
@@ -31,18 +32,20 @@ export function CommentsModal({
   storyTitle,
   comments,
   articleId,
-  isTelugu = true,
+  isTelugu: propIsTelugu,
   onClose,
   onAddComment,
 }: CommentsModalProps) {
   const insets = useSafeAreaInsets();
   const [commentText, setCommentText] = useState('');
+  const { isTelugu: ctxIsTelugu, t } = useLanguage();
+  const isTelugu = propIsTelugu !== undefined ? propIsTelugu : ctxIsTelugu;
 
   const handleSend = async () => {
     if (!commentText.trim()) return;
 
     const text = commentText.trim();
-    const userName = isTelugu ? 'నేను (మీరు)' : 'Reader (You)';
+    const userName = t.commentsReaderName;
     setCommentText('');
 
     if (articleId) {
@@ -53,12 +56,7 @@ export function CommentsModal({
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : String(err);
         if (errMsg.toLowerCase().includes('rate limit')) {
-          Alert.alert(
-            isTelugu ? 'పరిమితి మించింది' : 'Rate Limit',
-            isTelugu
-              ? 'దయచేసి కొద్దిసేపు ఆగి కామెంట్ చేయండి (1 నిమిషంలో గరిష్టంగా 3 కామెంట్లు మాత్రమే).'
-              : 'Please wait a minute before posting another comment (maximum 3 per minute).'
-          );
+          Alert.alert(t.commentsRateLimitTitle, t.commentsRateLimitMsg);
           return;
         }
         // Fallback to local
@@ -87,7 +85,7 @@ export function CommentsModal({
             <View style={styles.dragHandle} />
             <View style={styles.headerRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.headerTitle}>{isTelugu ? 'వ్యాఖ్యలు (Comments)' : 'Comments'}</Text>
+                <Text style={styles.headerTitle}>{t.commentsTitle}</Text>
                 <Text style={styles.headerSubtitle} numberOfLines={1}>
                   {storyTitle}
                 </Text>
@@ -102,12 +100,8 @@ export function CommentsModal({
           {comments.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="chatbubbles-outline" size={42} color="#52525B" />
-              <Text style={styles.emptyText}>
-                {isTelugu ? 'మొదటి వ్యాఖ్యను మీరే రాయండి!' : 'Be the first to share your thoughts!'}
-              </Text>
-              <Text style={styles.emptySubtext}>
-                {isTelugu ? 'Be the first to share your thoughts.' : 'Join the discussion.'}
-              </Text>
+              <Text style={styles.emptyText}>{t.commentsEmptyTitle}</Text>
+              <Text style={styles.emptySubtext}>{t.commentsEmptySubtitle}</Text>
             </View>
           ) : (
             <FlatList
@@ -136,7 +130,7 @@ export function CommentsModal({
             <View style={{ flex: 1, position: 'relative' }}>
               <TextInput
                 style={styles.input}
-                placeholder={isTelugu ? 'మీ అభిప్రాయాన్ని రాయండి (గరిష్టంగా 500 అక్షరాలు)...' : 'Write your comment (max 500 characters)...'}
+                placeholder={t.commentsPlaceholder}
                 placeholderTextColor="#71717A"
                 value={commentText}
                 onChangeText={setCommentText}

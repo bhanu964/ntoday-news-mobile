@@ -1,17 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { StyleSheet, Platform } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { StorageService } from '@/services/storageService';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function TabLayout() {
-  const [isTelugu, setIsTelugu] = useState<boolean>(true);
-
-  useEffect(() => {
-    StorageService.getLanguage().then((lang) => {
-      setIsTelugu(lang === 'te');
-    });
-  }, []);
+  const { isTelugu } = useLanguage();
 
   return (
     <Tabs

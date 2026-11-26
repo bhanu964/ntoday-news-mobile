@@ -16,18 +16,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StorageService } from '@/services/storageService';
 import { AuthService } from '@/services/authService';
 import { UserProfile } from '@/types/user';
-import { TRANSLATIONS } from '@/constants/translations';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface AccountViewProps {
   onBack: () => void;
   isTelugu?: boolean;
 }
 
-export function AccountView({ onBack, isTelugu = true }: AccountViewProps) {
+export function AccountView({ onBack, isTelugu: propIsTelugu }: AccountViewProps) {
   const insets = useSafeAreaInsets();
   const [bookmarkCount, setBookmarkCount] = useState<number>(0);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const t = TRANSLATIONS[isTelugu ? 'te' : 'en'];
+  const { isTelugu: ctxIsTelugu, t } = useLanguage();
+  const isTelugu = propIsTelugu !== undefined ? propIsTelugu : ctxIsTelugu;
 
   // Onboarding Modal State
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);

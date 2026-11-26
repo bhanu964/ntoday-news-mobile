@@ -16,27 +16,18 @@ import { NewsArticle, NewsComment } from '@/types/news';
 import { useArticles } from '@/hooks/useArticles';
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { useLikes } from '@/hooks/useLikes';
-import { StorageService } from '@/services/storageService';
-import { TRANSLATIONS } from '@/constants/translations';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function BookmarksTabScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [isTelugu, setIsTelugu] = useState<boolean>(true);
+  const { isTelugu, t } = useLanguage();
   const [containerHeight, setContainerHeight] = useState<number>(0);
   const reelsFeedRef = useRef<ReelsFeedRef>(null);
 
   const { articles, loading, setArticles } = useArticles();
   const { bookmarkedIds, toggleBookmark } = useBookmarks();
   const { toggleLike } = useLikes();
-
-  useEffect(() => {
-    StorageService.getLanguage().then((lang) => {
-      setIsTelugu(lang === 'te');
-    });
-  }, []);
-
-  const t = TRANSLATIONS[isTelugu ? 'te' : 'en'];
 
   const bookmarkedArticles = useMemo(() => {
     return articles.filter((a) => a.isBookmarked || bookmarkedIds.includes(a.id));

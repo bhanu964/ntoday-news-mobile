@@ -91,18 +91,23 @@ export const ArticlesService = {
           forceRefresh: params.forceRefresh,
         });
 
-        if (liveResult && liveResult.articles.length > 0) {
-          return {
-            articles: liveResult.articles,
-            hasMore: liveResult.hasMore,
-            total: liveResult.total,
-            isFallback: false,
-          };
+        if (liveResult) {
+          if (liveResult.articles.length > 0 || page > 1) {
+            return {
+              articles: liveResult.articles,
+              hasMore: liveResult.hasMore,
+              total: liveResult.total,
+              isFallback: false,
+            };
+          }
         }
       } catch (err) {
-        console.warn('[ArticlesService] Live scraper failed, using fallback:', err);
+        console.warn('[ArticlesService] Live scraper failed:', err);
       }
 
+      if (params.categoryId && params.categoryId !== 'all') {
+        return { articles: [], hasMore: false, total: 0, isFallback: true };
+      }
       return ArticlesService.getFallbackArticles(params);
     }
 
@@ -134,26 +139,26 @@ export const ArticlesService = {
       const { data, count, error } = await query;
 
       if (error || !data || data.length === 0) {
-        if (page === 1) {
-          // If Supabase table is empty, gracefully pull live scraped news from the website
-          try {
-            const liveResult = await ScraperService.fetchLiveArticles({
-              page,
-              categoryId: params.categoryId,
-              limit,
-              forceRefresh: params.forceRefresh,
-            });
-            if (liveResult && liveResult.articles.length > 0) {
-              return {
-                articles: liveResult.articles,
-                hasMore: liveResult.hasMore,
-                total: liveResult.total,
-                isFallback: false,
-              };
-            }
-          } catch {
-            // Fall through to mock below
+        // Fallback cleanly to live scraper across ALL pages (supports infinite category pagination)
+        try {
+          const liveResult = await ScraperService.fetchLiveArticles({
+            page,
+            categoryId: params.categoryId,
+            limit,
+            forceRefresh: params.forceRefresh,
+          });
+          if (liveResult) {
+            return {
+              articles: liveResult.articles,
+              hasMore: liveResult.hasMore,
+              total: liveResult.total,
+              isFallback: false,
+            };
           }
+        } catch {
+          // Fall through below
+        }
+        if (page === 1) {
           return ArticlesService.getFallbackArticles(params);
         }
         return {
@@ -335,11 +340,11 @@ export const ArticlesService = {
   },
 
   /**
-   * Fetch Categories from live scraper, Supabase or fallback.
+   * Fetch Categories strictly from the live website scraper (or Supabase if configured).
    */
-  async fetchCategories(): Promise<NewsCategory[]> {
+  async fetchCategories(forceRefresh = false): Promise<NewsCategory[]> {
     try {
-      const liveCats = await ScraperService.fetchCategories();
+      const liveCats = await ScraperService.fetchCategories(forceRefresh);
       if (liveCats && liveCats.length > 0) {
         return liveCats;
       }
@@ -370,20 +375,6 @@ export const ArticlesService = {
       }
     }
 
-    return defaultCategories;
+    return [{ id: 'all', name: 'అన్నీ', name_en: 'All Stories', slug: 'all', icon: 'apps' }];
   },
 };
-
-const defaultCategories: NewsCategory[] = [
-  { id: 'all', name: 'అన్నీ', name_en: 'All Stories', slug: 'all', icon: 'apps' },
-  { id: 'cat-politics', name: 'రాజకీయాలు', name_en: 'Politics', slug: 'politics', icon: 'megaphone' },
-  { id: 'cat-crime', name: 'క్రైమ్', name_en: 'Crime', slug: 'crime', icon: 'shield-alert' },
-  { id: 'cat-weather', name: 'వాతావరణం', name_en: 'Weather', slug: 'weather', icon: 'cloudy-night' },
-  { id: 'cat-business', name: 'బిజినెస్', name_en: 'Business', slug: 'business', icon: 'trending-up' },
-  { id: 'cat-education', name: 'విద్య & ఉద్యోగాలు', name_en: 'Jobs & Education', slug: 'education', icon: 'school' },
-  { id: 'cat-telangana', name: 'తెలంగాణ', name_en: 'Telangana', slug: 'telangana', icon: 'location' },
-  { id: 'cat-cinema', name: 'సినిమా', name_en: 'Cinema', slug: 'cinema', icon: 'film' },
-  { id: 'cat-sports', name: 'క్రీడలు', name_en: 'Sports', slug: 'sports', icon: 'football' },
-  { id: 'cat-agriculture', name: 'వ్యవసాయం', name_en: 'Agriculture', slug: 'agriculture', icon: 'leaf' },
-  { id: 'cat-tech', name: 'టెక్నాలజీ', name_en: 'Tech & ISRO', slug: 'technology', icon: 'rocket' },
-];

@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FeedbackSubmission } from '@/types/news';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface FeedbackModalProps {
   visible: boolean;
@@ -24,6 +25,7 @@ interface FeedbackModalProps {
 
 export function FeedbackModal({ visible, onClose, onSubmit }: FeedbackModalProps) {
   const insets = useSafeAreaInsets();
+  const { isTelugu, t } = useLanguage();
   const [selectedType, setSelectedType] = useState<'suggestion' | 'bug' | 'content' | 'general'>(
     'suggestion'
   );
@@ -33,15 +35,18 @@ export function FeedbackModal({ visible, onClose, onSubmit }: FeedbackModalProps
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const categories = [
-    { key: 'suggestion', label: '💡 Have a suggestion', teLabel: 'సలహా' },
-    { key: 'bug', label: '🐛 Found a bug', teLabel: 'యాప్ లోపం' },
-    { key: 'content', label: '📰 Content Issue', teLabel: 'వార్తా నాణ్యత' },
-    { key: 'general', label: '💬 General Feedback', teLabel: 'ఇతరములు' },
+    { key: 'suggestion', label: isTelugu ? '💡 సలహా (Suggestion)' : '💡 Have a suggestion' },
+    { key: 'bug', label: isTelugu ? '🐛 యాప్ లోపం (Bug)' : '🐛 Found a bug' },
+    { key: 'content', label: isTelugu ? '📰 వార్తా నాణ్యత (Content)' : '📰 Content Issue' },
+    { key: 'general', label: isTelugu ? '💬 సాధారణం (General)' : '💬 General Feedback' },
   ] as const;
 
   const handleSend = () => {
     if (!message.trim()) {
-      Alert.alert('గమనిక (Note)', 'దయచేసి మీ సందేశాన్ని టైప్ చేయండి (Please enter your message).');
+      Alert.alert(
+        isTelugu ? 'గమనిక' : 'Note',
+        isTelugu ? 'దయచేసి మీ సందేశాన్ని టైప్ చేయండి.' : 'Please enter your message.'
+      );
       return;
     }
 
@@ -57,20 +62,16 @@ export function FeedbackModal({ visible, onClose, onSubmit }: FeedbackModalProps
         submittedAt: new Date().toISOString(),
       });
 
-      Alert.alert(
-        'ధన్యవాదాలు (Thank you!)',
-        'మీ అభిప్రాయం NTODAY డెస్క్‌కు విజయవంతంగా చేరింది. మీ సూచనలు మాకు ఎంతో విలువైనవి!',
-        [
-          {
-            text: 'సరే (OK)',
-            onPress: () => {
-              setMessage('');
-              setContact('');
-              onClose();
-            },
+      Alert.alert(t.feedbackSuccessTitle, t.feedbackSuccessMsg, [
+        {
+          text: isTelugu ? 'సరే' : 'OK',
+          onPress: () => {
+            setMessage('');
+            setContact('');
+            onClose();
           },
-        ]
-      );
+        },
+      ]);
     }, 600);
   };
 
@@ -85,10 +86,8 @@ export function FeedbackModal({ visible, onClose, onSubmit }: FeedbackModalProps
             <View style={styles.dragHandle} />
             <View style={styles.headerRow}>
               <View>
-                <Text style={styles.headerTitle}>Submit Feedback</Text>
-                <Text style={styles.headerSubtitle}>
-                  Have a suggestion or found a bug? Let us know!
-                </Text>
+                <Text style={styles.headerTitle}>{t.feedbackTitle}</Text>
+                <Text style={styles.headerSubtitle}>{t.feedbackSubtitle}</Text>
               </View>
               <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
                 <Ionicons name="close" size={24} color="#A1A1AA" />
@@ -98,7 +97,7 @@ export function FeedbackModal({ visible, onClose, onSubmit }: FeedbackModalProps
 
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             {/* Category Chips */}
-            <Text style={styles.label}>Select Category (విభాగం ఎంచుకోండి)</Text>
+            <Text style={styles.label}>{t.feedbackCategoryLabel}</Text>
             <View style={styles.chipGrid}>
               {categories.map((c) => {
                 const isSelected = selectedType === c.key;
@@ -116,7 +115,7 @@ export function FeedbackModal({ visible, onClose, onSubmit }: FeedbackModalProps
             </View>
 
             {/* Star Rating */}
-            <Text style={[styles.label, { marginTop: 16 }]}>How would you rate NTODAY App?</Text>
+            <Text style={[styles.label, { marginTop: 16 }]}>{t.feedbackRatingLabel}</Text>
             <View style={styles.starsRow}>
               {[1, 2, 3, 4, 5].map((star) => (
                 <TouchableOpacity key={star} onPress={() => setRating(star)} style={styles.starBtn}>
@@ -130,14 +129,14 @@ export function FeedbackModal({ visible, onClose, onSubmit }: FeedbackModalProps
             </View>
 
             {/* Message Input Box */}
-            <Text style={[styles.label, { marginTop: 16 }]}>Your Feedback (మీ అభిప్రాయం)</Text>
+            <Text style={[styles.label, { marginTop: 16 }]}>{t.feedbackMessageLabel}</Text>
             <View style={styles.inputBox}>
               <TextInput
                 style={styles.textArea}
                 multiline
                 numberOfLines={4}
                 maxLength={500}
-                placeholder="Type your message here... మీ అభిప్రాయాన్ని లేదా సమస్యను ఇక్కడ టైప్ చేయండి..."
+                placeholder={t.feedbackPlaceholder}
                 placeholderTextColor="#71717A"
                 value={message}
                 onChangeText={setMessage}
@@ -146,12 +145,10 @@ export function FeedbackModal({ visible, onClose, onSubmit }: FeedbackModalProps
             </View>
 
             {/* Optional Email / Phone */}
-            <Text style={[styles.label, { marginTop: 14 }]}>
-              Contact Info (Optional - Email or Phone)
-            </Text>
+            <Text style={[styles.label, { marginTop: 14 }]}>{t.feedbackContactLabel}</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="మీ ఇమెయిల్ లేదా ఫోన్ నంబర్"
+              placeholder={isTelugu ? 'మీ ఇమెయిల్ లేదా ఫోన్ నంబర్' : 'Email or phone number'}
               placeholderTextColor="#71717A"
               value={contact}
               onChangeText={setContact}
@@ -167,7 +164,7 @@ export function FeedbackModal({ visible, onClose, onSubmit }: FeedbackModalProps
               ) : (
                 <>
                   <Ionicons name="paper-plane" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.sendButtonText}>Send Feedback (అభిప్రాయం పంపండి)</Text>
+                  <Text style={styles.sendButtonText}>{t.feedbackSendBtn}</Text>
                 </>
               )}
             </TouchableOpacity>

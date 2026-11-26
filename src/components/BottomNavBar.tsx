@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLanguage } from '@/context/LanguageContext';
 
 export type TabKey = 'home' | 'live' | 'feed' | 'videos' | 'explore';
 
@@ -18,13 +19,14 @@ export interface BottomNavBarProps {
 export function BottomNavBar({
   activeTab = 'home',
   onTabChange,
-  isTelugu = true,
+  isTelugu: _propIsTelugu,
   onHomePress,
   onNewsPlusPress,
   onReloadPress,
   isReloading = false,
 }: BottomNavBarProps) {
   const insets = useSafeAreaInsets();
+  const { t } = useLanguage();
 
   const handleHome = () => {
     if (onHomePress) {
@@ -58,7 +60,7 @@ export function BottomNavBar({
         hitSlop={{ top: 10, bottom: 10, left: 15, right: 15 }}
         accessibilityLabel="Home">
         <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
-        <Text style={styles.navLabel}>{isTelugu ? 'హోమ్' : 'Home'}</Text>
+        <Text style={styles.navLabel}>{t.homeBtn}</Text>
       </TouchableOpacity>
 
       {/* 2. Middle: Creative News+ Pill Button (Custom branded touch) */}
@@ -67,7 +69,7 @@ export function BottomNavBar({
         onPress={handleNewsPlus}
         activeOpacity={0.85}
         accessibilityLabel="News Categories and Topics">
-        <Text style={styles.newsPlusText}>{isTelugu ? 'న్యూస్+' : 'News+'}</Text>
+        <Text style={styles.newsPlusText}>{t.categoriesBtn}</Text>
         <Ionicons name="chevron-up" size={16} color="#FFFFFF" style={styles.chevronIcon} />
       </TouchableOpacity>
 
@@ -85,7 +87,7 @@ export function BottomNavBar({
           <Ionicons name="reload" size={21} color="#FFFFFF" />
         )}
         <Text style={[styles.navLabel, isReloading && { color: '#E50914' }]}>
-          {isReloading ? (isTelugu ? 'లోడింగ్...' : 'Loading...') : (isTelugu ? 'రీలోడ్' : 'Reload')}
+          {isReloading ? t.loadingBtn : t.reloadBtn}
         </Text>
       </TouchableOpacity>
     </View>

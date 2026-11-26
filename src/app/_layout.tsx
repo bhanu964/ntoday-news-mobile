@@ -5,6 +5,7 @@ import { View, StyleSheet, Platform } from 'react-native';
 import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { LanguageProvider } from '@/context/LanguageContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -54,15 +55,17 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ThemeProvider value={DarkTheme}>
-        <View style={styles.webOuter}>
-          <View style={styles.webInner}>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-            </Stack>
+      <LanguageProvider>
+        <ThemeProvider value={DarkTheme}>
+          <View style={styles.webOuter}>
+            <View style={styles.webInner}>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="index" options={{ headerShown: false }} />
+              </Stack>
+            </View>
           </View>
-        </View>
-      </ThemeProvider>
+        </ThemeProvider>
+      </LanguageProvider>
     </SafeAreaProvider>
   );
 }

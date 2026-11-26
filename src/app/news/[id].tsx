@@ -13,12 +13,12 @@ import Head from 'expo-router/head';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArticlesService } from '@/services/articlesService';
-import { StorageService } from '@/services/storageService';
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { useLikes } from '@/hooks/useLikes';
 import { NewsArticle, NewsComment } from '@/types/news';
 import { NewsCard } from '@/components/NewsCard';
 import { APP_CONFIG } from '@/config/appConfig';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function ArticleDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -28,16 +28,10 @@ export default function ArticleDetailScreen() {
 
   const [article, setArticle] = useState<NewsArticle | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [isTelugu, setIsTelugu] = useState<boolean>(true);
+  const { isTelugu, toggleLanguage } = useLanguage();
 
   const { toggleBookmark } = useBookmarks();
   const { toggleLike } = useLikes();
-
-  useEffect(() => {
-    StorageService.getLanguage().then((lang) => {
-      setIsTelugu(lang === 'te');
-    });
-  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -61,9 +55,7 @@ export default function ArticleDetailScreen() {
   };
 
   const handleLanguageToggle = () => {
-    const next = !isTelugu;
-    setIsTelugu(next);
-    StorageService.setLanguage(next ? 'te' : 'en');
+    toggleLanguage();
   };
 
   const handleBookmarkToggle = async (articleId: string, isBookmarked: boolean) => {

@@ -16,18 +16,18 @@ import { TopHeader, FeedFilterType } from '@/components/TopHeader';
 import { ReelsFeed, ReelsFeedRef } from '@/components/ReelsFeed';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { CategoryFilterModal } from '@/components/CategoryFilterModal';
-import { NewsArticle, NewsComment, FeedbackSubmission } from '@/types/news';
+import { NewsArticle, NewsCategory, NewsComment, FeedbackSubmission } from '@/types/news';
 import { useArticles } from '@/hooks/useArticles';
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { useLikes } from '@/hooks/useLikes';
-import { StorageService } from '@/services/storageService';
-import { TRANSLATIONS } from '@/constants/translations';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function FeedTabScreen() {
   const router = useRouter();
+  const { isTelugu, t, toggleLanguage } = useLanguage();
   const [activeFilter, setActiveFilter] = useState<FeedFilterType>('latest');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [isTelugu, setIsTelugu] = useState<boolean>(true);
+  const [selectedCategoryObj, setSelectedCategoryObj] = useState<NewsCategory | null>(null);
 
   // Modals state
   const [showFeedbackModal, setShowFeedbackModal] = useState<boolean>(false);
@@ -54,15 +54,6 @@ export default function FeedTabScreen() {
   const { toggleBookmark } = useBookmarks();
   const { toggleLike } = useLikes();
 
-  // Load language preference on startup
-  useEffect(() => {
-    StorageService.getLanguage().then((lang) => {
-      setIsTelugu(lang === 'te');
-    });
-  }, []);
-
-  const t = TRANSLATIONS[isTelugu ? 'te' : 'en'];
-
   // Dynamic layout measurement to guarantee 100% card snapping
   const handleLayout = (e: LayoutChangeEvent) => {
     const { height } = e.nativeEvent.layout;
@@ -76,24 +67,26 @@ export default function FeedTabScreen() {
     return articles.filter((a) => !a.isRead).length;
   }, [articles]);
 
-  // Filtered news feed based on TopHeader filter or Category
+  // Strict filtered news feed based on TopHeader filter or exact Category
   const filteredArticles = useMemo(() => {
     let list = articles;
 
-    // Filter by Unread snapshot (prevents auto-deleting active item while user is reading it)
     if (activeFilter === 'unread') {
       list = list.filter((a) => unreadSessionIds.includes(a.id));
     }
 
-    // Filter by Category
     if (selectedCategory !== 'all') {
-      list = list.filter(
-        (a) => a.category === selectedCategory || a.category_id === selectedCategory
-      );
+      const q = selectedCategory.trim().toLowerCase();
+      const catName = selectedCategoryObj?.name?.trim().toLowerCase();
+      list = list.filter((a) => {
+        const aCat = (a.category || '').trim().toLowerCase();
+        const aCatId = (a.category_id || '').trim().toLowerCase();
+        return aCatId === q || aCat === q || (Boolean(catName) && aCat === catName);
+      });
     }
 
     return list;
-  }, [articles, activeFilter, unreadSessionIds, selectedCategory]);
+  }, [articles, activeFilter, unreadSessionIds, selectedCategory, selectedCategoryObj]);
 
   const handleActiveIndexChange = (index: number, article: NewsArticle) => {
     if (!article.isRead) {
@@ -140,10 +133,20 @@ export default function FeedTabScreen() {
   };
 
   const handleLanguageToggle = () => {
-    const next = !isTelugu;
-    setIsTelugu(next);
-    StorageService.setLanguage(next ? 'te' : 'en');
+    toggleLanguage();
   };
+
+  const handleSelectCategory = (catId: string, catObj?: NewsCategory) => {
+    setSelectedCategory(catId);
+    setSelectedCategoryObj(catId === 'all' ? null : catObj || null);
+    reelsFeedRef.current?.scrollToIndex(0, false);
+  };
+
+  const activeCategoryLabel = selectedCategoryObj
+    ? isTelugu
+      ? selectedCategoryObj.name
+      : selectedCategoryObj.name_en || selectedCategoryObj.name
+    : selectedCategory;
 
   return (
     <View style={styles.container}>
@@ -165,11 +168,12 @@ export default function FeedTabScreen() {
       {selectedCategory !== 'all' && (
         <View style={styles.activeFilterBanner}>
           <Text style={styles.activeFilterText}>
-            {`${t.categoryBanner}${selectedCategory}`}
+            {`${t.categoryBanner}${activeCategoryLabel}`}
           </Text>
           <TouchableOpacity
             onPress={() => {
               setSelectedCategory('all');
+              setSelectedCategoryObj(null);
             }}>
             <Ionicons name="close-circle" size={18} color="#FFFFFF" />
           </TouchableOpacity>
@@ -231,7 +235,7 @@ export default function FeedTabScreen() {
         visible={showFilterModal}
         selectedCategory={selectedCategory}
         isTelugu={isTelugu}
-        onSelectCategory={setSelectedCategory}
+        onSelectCategory={handleSelectCategory}
         onClose={() => setShowFilterModal(false)}
       />
     </View>

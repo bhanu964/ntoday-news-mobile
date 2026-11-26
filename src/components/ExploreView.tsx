@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { TOP_STORIES, PLAYLIST_STORIES } from '@/data/mockNews';
 import { TopStory } from '@/types/news';
 import { ArticlesService } from '@/services/articlesService';
-import { TRANSLATIONS } from '@/constants/translations';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface ExploreViewProps {
   onStorySelect: (story: TopStory) => void;
@@ -21,12 +21,13 @@ interface ExploreViewProps {
   isTelugu?: boolean;
 }
 
-export function ExploreView({ onStorySelect, onOpenAccount, isTelugu = true }: ExploreViewProps) {
+export function ExploreView({ onStorySelect, onOpenAccount, isTelugu: propIsTelugu }: ExploreViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isPlayingHeadlines, setIsPlayingHeadlines] = useState(false);
   const [stories, setStories] = useState<TopStory[]>(TOP_STORIES);
 
-  const t = TRANSLATIONS[isTelugu ? 'te' : 'en'];
+  const { isTelugu: ctxIsTelugu, t } = useLanguage();
+  const isTelugu = propIsTelugu !== undefined ? propIsTelugu : ctxIsTelugu;
 
   useEffect(() => {
     ArticlesService.fetchTopStories().then((res) => {

@@ -2,27 +2,38 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLanguage } from '@/context/LanguageContext';
 
 export type FeedFilterType = 'latest' | 'unread' | 'feedback';
 
 interface TopHeaderProps {
   activeFilter: FeedFilterType;
   unreadCount: number;
-  isTelugu: boolean;
+  isTelugu?: boolean;
   onFilterChange: (filter: FeedFilterType) => void;
-  onLanguageToggle: () => void;
+  onLanguageToggle?: () => void;
   onUserPress: () => void;
 }
 
 export function TopHeader({
   activeFilter,
   unreadCount,
-  isTelugu,
+  isTelugu: propIsTelugu,
   onFilterChange,
   onLanguageToggle,
   onUserPress,
 }: TopHeaderProps) {
   const insets = useSafeAreaInsets();
+  const { isTelugu: ctxIsTelugu, t, toggleLanguage } = useLanguage();
+  const isTelugu = propIsTelugu !== undefined ? propIsTelugu : ctxIsTelugu;
+
+  const handleLangPress = () => {
+    if (onLanguageToggle) {
+      onLanguageToggle();
+    } else {
+      toggleLanguage();
+    }
+  };
 
   return (
     <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 8) }]}>
@@ -43,7 +54,7 @@ export function TopHeader({
           onPress={() => onFilterChange('latest')}
           activeOpacity={0.8}>
           <Text style={[styles.segmentText, activeFilter === 'latest' && styles.segmentTextActive]}>
-            {isTelugu ? 'న్యూస్' : 'News'}
+            {t.newsTab}
           </Text>
         </TouchableOpacity>
 
@@ -53,7 +64,7 @@ export function TopHeader({
           onPress={() => onFilterChange('unread')}
           activeOpacity={0.8}>
           <Text style={[styles.segmentText, activeFilter === 'unread' && styles.segmentTextActive]}>
-            {isTelugu ? 'చదవనివి' : 'Unread'}
+            {t.unreadTab}
           </Text>
           {unreadCount > 0 && (
             <View style={styles.badgeRed}>
@@ -63,7 +74,7 @@ export function TopHeader({
         </TouchableOpacity>
       </View>
 
-      {/* 3. Right: Clean Logo + Language Switcher Pill (No flags, no hamburger menu) */}
+      {/* 3. Right: Clean Logo + [తె | A] Language Toggle Pill */}
       <View style={styles.rightSection}>
         <Image
           source={require('../../assets/images/ntoday-official-logo.png')}
@@ -72,12 +83,16 @@ export function TopHeader({
         />
         <TouchableOpacity
           style={styles.langPill}
-          activeOpacity={0.7}
-          onPress={onLanguageToggle}>
-          <View style={styles.langBadge}>
-            <Text style={styles.langBadgeText}>{isTelugu ? 'తె' : 'En'}</Text>
+          activeOpacity={0.75}
+          onPress={handleLangPress}
+          accessibilityLabel={isTelugu ? 'Switch language to English' : 'Switch language to Telugu'}>
+          <View style={[styles.langSegment, isTelugu && styles.langSegmentActive]}>
+            <Text style={[styles.langText, isTelugu && styles.langTextActive]}>తె</Text>
           </View>
-          <Text style={styles.langSecondaryText}>{isTelugu ? 'A' : 'తె'}</Text>
+          <View style={styles.langDivider} />
+          <View style={[styles.langSegment, !isTelugu && styles.langSegmentActive]}>
+            <Text style={[styles.langText, !isTelugu && styles.langTextActive]}>A</Text>
+          </View>
         </TouchableOpacity>
       </View>
     </View>
@@ -160,26 +175,33 @@ const styles = StyleSheet.create({
   langPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#27272a',
-    paddingHorizontal: 7,
-    paddingVertical: 3.5,
-    borderRadius: 20,
-    gap: 3,
+    backgroundColor: '#1E1E24',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    padding: 2,
+    borderRadius: 16,
   },
-  langBadge: {
+  langSegment: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  langSegmentActive: {
     backgroundColor: '#E50914',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4,
   },
-  langBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10.5,
-    fontWeight: '800',
+  langDivider: {
+    width: 1,
+    height: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    marginHorizontal: 1,
   },
-  langSecondaryText: {
-    color: '#D4D4D8',
+  langText: {
+    color: '#A1A1AA',
     fontSize: 11,
     fontWeight: '700',
+  },
+  langTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
   },
 });

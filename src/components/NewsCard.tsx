@@ -21,6 +21,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MediaViewer } from './MediaViewer';
 import { CommentsModal } from './CommentsModal';
 import { FullArticleModal } from './FullArticleModal';
+import { TranslationService } from '@/services/translationService';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface TemplateMetrics {
   photoRatio: number;
@@ -121,33 +123,35 @@ export function NewsCard({
   totalCards,
   cardHeight,
   cardWidth,
-  isTelugu = true,
+  isTelugu: _propIsTelugu,
   isActive = true,
   onBookmarkChange,
   onAddComment,
   onToggleLike,
   onCardPress,
 }: NewsCardProps) {
+  const { isTelugu, t } = useLanguage();
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? Colors.dark : Colors.light;
 
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const effectiveWidth = cardWidth || (Platform.OS === 'web' ? Math.min(windowWidth, 480) : windowWidth);
-  // On home/feed the BottomNavBar is hidden, so the container fills the full available area.
-  // cardHeight is the measured containerHeight passed from index.tsx; use it directly.
   const effectiveHeight = cardHeight || (windowHeight > 0 ? windowHeight - 56 : 700);
 
-  // Compute fixed template metrics once from effectiveHeight (identical across ALL cards on this device)
+  // Compute fixed template metrics once from effectiveHeight
   const template = computeCardTemplate(effectiveHeight);
   const {
     photoHeight,
     headlineFontSize,
     headlineLineHeight,
-    headlineBlockHeight,
     bodyFontSize,
     bodyLineHeight,
-    bodyBlockHeight,
   } = template;
+
+  // Dynamic exact body line count so text fills available vertical space without ever overlapping the Read More pill
+  const reservedChromeHeight = 56 + photoHeight + 46 + 40 + (2 * headlineLineHeight + 6);
+  const availableBodyHeight = Math.max(80, effectiveHeight - reservedChromeHeight);
+  const maxBodyLines = Math.max(4, Math.floor(availableBodyHeight / bodyLineHeight));
 
   const [likes, setLikes] = useState(article.likesCount || 0);
   const [hasLiked, setHasLiked] = useState(article.isLiked ?? false);
@@ -160,6 +164,8 @@ export function NewsCard({
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showFullArticleModal, setShowFullArticleModal] = useState(false);
   const [comments, setComments] = useState<NewsComment[]>(article.comments || []);
+  const [translatedPatch, setTranslatedPatch] = useState<Partial<NewsArticle> | null>(null);
+  const [isTranslating, setIsTranslating] = useState(false);
 
   // Sync state when article prop changes
   useEffect(() => {
@@ -168,17 +174,51 @@ export function NewsCard({
     setHasLiked(article.isLiked ?? false);
     setHasDisliked(article.isDisliked ?? false);
     setIsBookmarked(article.isBookmarked ?? false);
+    setTranslatedPatch(null);
     if (article.comments) {
       setComments(article.comments);
     }
   }, [article.id, article.likesCount, article.dislikesCount, article.isLiked, article.isDisliked, article.isBookmarked, article.comments]);
 
+  // Dynamic on-demand translation to English when English mode is active
+  useEffect(() => {
+    if (isTelugu) return;
+    if (article.title_en && article.content_en) return;
+
+    let cancelled = false;
+    setIsTranslating(true);
+    TranslationService.translateArticle(article)
+      .then((enriched) => {
+        if (!cancelled) {
+          setTranslatedPatch({
+            title_en: enriched.title_en,
+            content_en: enriched.content_en,
+            summary_en: enriched.summary_en,
+            category_en: enriched.category_en,
+            authorDesk_en: enriched.authorDesk_en,
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsTranslating(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isTelugu, article.id, article.title_en, article.content_en]);
+
+  const effectiveArticle: NewsArticle = translatedPatch
+    ? { ...article, ...translatedPatch }
+    : article;
+
   // Dynamic bilingual text
-  const displayTitle = !isTelugu && article.title_en ? article.title_en : article.title;
-  // Clean body preview: prioritize complete content so the snippet has enough text to naturally fill the available lines
+  const displayTitle = !isTelugu && effectiveArticle.title_en
+    ? effectiveArticle.title_en
+    : effectiveArticle.title;
   const rawBody = !isTelugu
-    ? (article.content_en || article.content || article.summary_en || article.summary || '')
-    : (article.content || article.summary || '');
+    ? (effectiveArticle.content_en || effectiveArticle.summary_en || effectiveArticle.content || effectiveArticle.summary || '')
+    : (effectiveArticle.content || effectiveArticle.summary || '');
   const displayBody = rawBody
     .replace(/\r\n/g, '\n')
     .replace(/\n\s*\n+/g, '\n')
@@ -340,14 +380,23 @@ export function NewsCard({
     return String(count);
   };
 
-  // In the bottom-left photo badge, remove redundant "NToday News" branding (already shown at top-left)
-  const rawAuthor = (article.authorName || '').trim();
-  const rawDesk = (article.authorDesk || '').trim();
+  // In the bottom-left photo badge, display actual reporter name from live website
+  const rawAuthor = (effectiveArticle.authorName || '').trim();
+  const rawDesk = (
+    (!isTelugu ? effectiveArticle.authorDesk_en : effectiveArticle.authorDesk) ||
+    effectiveArticle.authorDesk ||
+    ''
+  ).trim();
+  const rawCatLabel = (
+    (!isTelugu ? effectiveArticle.category_en : effectiveArticle.category) ||
+    effectiveArticle.category ||
+    t.newsTab
+  ).trim();
   const isGenericChannelName = !rawAuthor || rawAuthor.toLowerCase().includes('ntoday');
   const reporterPersonName = isGenericChannelName ? '' : rawAuthor;
   const deskOrLocation = rawDesk && !rawDesk.toLowerCase().includes('ntoday')
     ? rawDesk
-    : (article.category || 'డెస్క్');
+    : rawCatLabel;
 
   const bottomBadgeLabel = reporterPersonName
     ? (deskOrLocation && !reporterPersonName.toLowerCase().includes(deskOrLocation.toLowerCase())
@@ -424,7 +473,7 @@ export function NewsCard({
               {displayTitle}
             </Text>
 
-            {/* Body Preview Text - dynamically fills the available vertical space */}
+            {/* Body Preview Text - dynamically fills the available vertical space without colliding with pill */}
             <Text
               style={[
                 styles.bodyText,
@@ -434,22 +483,25 @@ export function NewsCard({
                   lineHeight: bodyLineHeight,
                 },
               ]}
-              numberOfLines={effectiveHeight < 660 ? 8 : effectiveHeight < 760 ? 11 : 14}>
+              numberOfLines={maxBodyLines}>
               {displayBody}
             </Text>
           </View>
 
-          {/* Highly Visible Read More Button - anchored towards bottom of content area */}
-          <TouchableOpacity
-            style={styles.readMorePill}
-            onPress={() => setShowFullArticleModal(true)}
-            activeOpacity={0.75}
-            hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
-            <Text style={styles.readMorePillText}>
-              {isTelugu ? 'మరింత చదవండి' : 'Read Full Story'}
-            </Text>
-            <Ionicons name="arrow-forward-circle" size={16} color="#E50914" />
-          </TouchableOpacity>
+          {/* Highly Visible Read More Button - anchored neatly below clipped textWrapper */}
+          <View style={styles.readMoreRow}>
+            <TouchableOpacity
+              style={styles.readMorePill}
+              onPress={() => setShowFullArticleModal(true)}
+              activeOpacity={0.75}
+              hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }}>
+              <Text style={styles.readMorePillText}>{t.readMore}</Text>
+              <Ionicons name="arrow-forward-circle" size={16} color="#E50914" />
+            </TouchableOpacity>
+            {isTranslating && !isTelugu && (
+              <Text style={styles.translatingLabel}>{t.translating}</Text>
+            )}
+          </View>
         </View>
 
         {/* 3. META ROW: Fixed height 32, pinned just above action bar at bottom: 0 of interactive body */}
@@ -604,7 +656,7 @@ export function NewsCard({
       {/* 7. FULL ARTICLE SCROLLABLE MODAL */}
       <FullArticleModal
         visible={showFullArticleModal}
-        article={article}
+        article={effectiveArticle}
         isTelugu={isTelugu}
         onClose={() => setShowFullArticleModal(false)}
         onBookmarkChange={onBookmarkChange}
@@ -706,6 +758,20 @@ const styles = StyleSheet.create({
   },
   textWrapper: {
     flexShrink: 1,
+    overflow: 'hidden',
+  },
+  readMoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
+    marginBottom: 2,
+    zIndex: 2,
+  },
+  translatingLabel: {
+    color: '#A1A1AA',
+    fontSize: 11,
+    fontStyle: 'italic',
   },
   headlineText: {
     fontWeight: '800',

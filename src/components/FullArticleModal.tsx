@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NewsArticle } from '@/types/news';
 import { APP_CONFIG } from '@/config/appConfig';
+import { useLanguage } from '@/context/LanguageContext';
+import { TranslationService } from '@/services/translationService';
 
 interface FullArticleModalProps {
   visible: boolean;
@@ -29,17 +31,54 @@ interface FullArticleModalProps {
 export function FullArticleModal({
   visible,
   article,
-  isTelugu = true,
+  isTelugu: propIsTelugu,
   onClose,
   onBookmarkChange,
   isBookmarked = false,
 }: FullArticleModalProps) {
   const insets = useSafeAreaInsets();
+  const { isTelugu: ctxIsTelugu, t } = useLanguage();
+  const isTelugu = propIsTelugu !== undefined ? propIsTelugu : ctxIsTelugu;
+  const [translatedPatch, setTranslatedPatch] = useState<Partial<NewsArticle> | null>(null);
+
+  useEffect(() => {
+    setTranslatedPatch(null);
+  }, [article?.id]);
+
+  useEffect(() => {
+    if (!visible || !article || isTelugu) return;
+    if (article.title_en && article.content_en) return;
+    let cancelled = false;
+    TranslationService.translateArticle(article).then((enriched) => {
+      if (!cancelled) {
+        setTranslatedPatch({
+          title_en: enriched.title_en,
+          content_en: enriched.content_en,
+          category_en: enriched.category_en,
+          authorDesk_en: enriched.authorDesk_en,
+        });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, article?.id, isTelugu]);
 
   if (!article) return null;
 
-  const displayTitle = !isTelugu && article.title_en ? article.title_en : article.title;
-  const fullContent = !isTelugu && article.content_en ? article.content_en : (article.content || article.summary || '');
+  const effectiveArticle: NewsArticle = translatedPatch
+    ? { ...article, ...translatedPatch }
+    : article;
+
+  const displayTitle = !isTelugu && effectiveArticle.title_en
+    ? effectiveArticle.title_en
+    : effectiveArticle.title;
+  const fullContent = !isTelugu && effectiveArticle.content_en
+    ? effectiveArticle.content_en
+    : effectiveArticle.content || effectiveArticle.summary || '';
+  const displayCategory = !isTelugu
+    ? (effectiveArticle.category_en || effectiveArticle.category || 'News')
+    : (effectiveArticle.category || 'వార్తలు');
   const paragraphs = fullContent
     .split(/\n+/)
     .map((p) => p.trim())
@@ -77,10 +116,14 @@ export function FullArticleModal({
     });
   };
 
-  const rawAuthor = (article.authorName || '').trim();
-  const rawDesk = (article.authorDesk || '').trim();
+  const rawAuthor = (effectiveArticle.authorName || '').trim();
+  const rawDesk = (
+    (!isTelugu ? effectiveArticle.authorDesk_en : effectiveArticle.authorDesk) ||
+    effectiveArticle.authorDesk ||
+    ''
+  ).trim();
   const isGenericChannelName = !rawAuthor || rawAuthor.toLowerCase().includes('ntoday');
-  const reporterName = isGenericChannelName ? (rawDesk || 'డెస్క్') : rawAuthor;
+  const reporterName = isGenericChannelName ? (rawDesk || (isTelugu ? 'డెస్క్' : 'Desk')) : rawAuthor;
   const reporterDesk = isGenericChannelName ? '' : rawDesk;
 
   return (
@@ -150,7 +193,7 @@ export function FullArticleModal({
             />
             {/* Category tag on image */}
             <View style={styles.categoryBadge}>
-              <Text style={styles.categoryBadgeText}>{article.category || 'వార్తలు'}</Text>
+              <Text style={styles.categoryBadgeText}>{displayCategory}</Text>
             </View>
           </View>
 

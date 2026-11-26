@@ -1,13 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NewsArticle, NewsCategory } from '@/types/news';
 import { MOCK_NEWS_ARTICLES } from '@/data/mockNews';
+import { TranslationService } from './translationService';
 
 const BASE_URL = 'https://ntodaynews.com';
-const STORAGE_KEY_ARTICLES = '@ntoday_live_articles_v1';
-const STORAGE_KEY_TIMESTAMP = '@ntoday_live_articles_timestamp';
+const STORAGE_KEY_ARTICLES_PREFIX = '@ntoday_live_articles_v2_';
+const STORAGE_KEY_TIMESTAMP_PREFIX = '@ntoday_live_articles_ts_v2_';
+const STORAGE_KEY_CATEGORIES = '@ntoday_live_categories_v2';
 const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes cache validity
 
-// Helper to decode HTML entities and strip unwanted tags
 function cleanHtml(rawHtml?: string | null): string {
   if (!rawHtml) return '';
   return rawHtml
@@ -26,7 +27,7 @@ function cleanHtml(rawHtml?: string | null): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/\r\n/g, '\n')
-    .replace(/\n\s*\n+/g, '\n') // Single newline to prevent awkward blank lines
+    .replace(/\n\s*\n+/g, '\n')
     .replace(/[ \t]+/g, ' ')
     .trim();
 }
@@ -38,7 +39,6 @@ function generateSnippet(fullText: string, targetLength: number = 1200): string 
   if (singleLine.length <= targetLength) return singleLine;
 
   const slice = singleLine.slice(0, targetLength);
-  // Find last space or punctuation mark
   const lastSpace = slice.lastIndexOf(' ');
   const lastPeriod = slice.lastIndexOf('.');
   const cutIndex = Math.max(lastPeriod > 400 ? lastPeriod + 1 : -1, lastSpace);
@@ -49,8 +49,7 @@ function generateSnippet(fullText: string, targetLength: number = 1200): string 
   return slice.trim();
 }
 
-// Fetch with strict timeout helper
-async function fetchWithTimeout(url: string, timeoutMs: number = 5500): Promise<string> {
+async function fetchWithTimeout(url: string, timeoutMs: number = 6500): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -74,7 +73,6 @@ async function fetchWithTimeout(url: string, timeoutMs: number = 5500): Promise<
   }
 }
 
-// Ensure full valid URL for images
 function normalizeImageUrl(src?: string | null): string {
   if (!src) return 'https://ntodaynews.com/assets/images/default.png';
   if (src.startsWith('http://') || src.startsWith('https://')) return src;
@@ -83,11 +81,27 @@ function normalizeImageUrl(src?: string | null): string {
   return `${BASE_URL}/${src}`;
 }
 
+function resolveCategoryIcon(teLabel: string): string {
+  const l = teLabel.trim().toLowerCase();
+  if (l.includes('తెలంగాణ') || l.includes('telangana')) return 'location';
+  if (l.includes('ఆంధ్రప్రదేశ్') || l.includes('andhra')) return 'location-outline';
+  if (l.includes('వినోదం') || l.includes('సినిమా') || l.includes('entertainment')) return 'film';
+  if (l.includes('భక్తి') || l.includes('devotional')) return 'sparkles';
+  if (l.includes('క్రీడలు') || l.includes('sports')) return 'football';
+  if (l.includes('జాతీయం') || l.includes('national')) return 'flag';
+  if (l.includes('అంతర్జాతీయం') || l.includes('international')) return 'globe';
+  if (l.includes('ఆర్టీఐ') || l.includes('rti')) return 'document-text';
+  if (l.includes('రాజకీయాలు') || l.includes('politics')) return 'megaphone';
+  if (l.includes('క్రైమ్') || l.includes('crime')) return 'alert-circle';
+  return 'newspaper-outline';
+}
+
 export interface ScrapedCardSummary {
   url: string;
   slug: string;
   title: string;
   imageUrl: string;
+  categoryLabel?: string;
   rawDate?: string;
   rawViews?: string;
 }
@@ -104,12 +118,105 @@ export interface ScrapedArticleDetail {
   publishedAt?: string;
 }
 
+let liveCategoriesCache: NewsCategory[] = [];
+
 export const ScraperService = {
   /**
-   * Fast extraction of all article cards available on the website homepage
+   * Dynamically extracts category IDs & Telugu names from live HTML (<a href=".../category/{id}">...</a>)
+   */
+  async extractAndStoreCategoriesFromHtml(html: string): Promise<NewsCategory[]> {
+    const catRegex = /<a[^>]*href="(?:https:\/\/ntodaynews\.com)?\/category\/(\d+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    let match: RegExpExecArray | null;
+    const seenIds = new Map<string, string>();
+
+    while ((match = catRegex.exec(html)) !== null) {
+      const catId = match[1].trim();
+      const label = cleanHtml(match[2]);
+      if (!catId || !label) continue;
+      // Skip "View All" links pointing to a category
+      if (label === 'అన్నీ చూడండి' || label.toLowerCase() === 'view all') continue;
+      if (!seenIds.has(catId)) {
+        seenIds.set(catId, label);
+      }
+    }
+
+    if (seenIds.size === 0) return liveCategoriesCache;
+
+    const extracted: NewsCategory[] = [
+      { id: 'all', name: 'అన్నీ', name_en: 'All Stories', slug: 'all', icon: 'apps', sort_order: 0 },
+    ];
+
+    let order = 1;
+    for (const [catId, teName] of seenIds.entries()) {
+      const enName =
+        TranslationService.getCachedSync(teName) || (await TranslationService.translateCategory(teName));
+      extracted.push({
+        id: catId,
+        name: teName,
+        name_en: enName || teName,
+        slug: catId,
+        icon: resolveCategoryIcon(teName),
+        sort_order: order++,
+      });
+    }
+
+    liveCategoriesCache = extracted;
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(extracted));
+    } catch {
+      // Ignore cache failure
+    }
+    return extracted;
+  },
+
+  async getCachedCategories(): Promise<NewsCategory[]> {
+    if (liveCategoriesCache.length > 0) return liveCategoriesCache;
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY_CATEGORIES);
+      if (raw) {
+        const parsed = JSON.parse(raw) as NewsCategory[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          liveCategoriesCache = parsed;
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore storage error
+    }
+    return [{ id: 'all', name: 'అన్నీ', name_en: 'All Stories', slug: 'all', icon: 'apps', sort_order: 0 }];
+  },
+
+  /**
+   * Resolves a numeric category ID, slug, Telugu name, or English name to the canonical website category.
+   */
+  async resolveCategoryInfo(categoryIdOrName?: string): Promise<NewsCategory | null> {
+    if (!categoryIdOrName || categoryIdOrName === 'all') return null;
+
+    let cats = await this.getCachedCategories();
+    // If only 'all' exists in cache, scrape live homepage categories first
+    if (cats.length <= 1) {
+      cats = await this.fetchCategories(true);
+    }
+
+    const q = categoryIdOrName.trim().toLowerCase();
+    const matched = cats.find(
+      (c) =>
+        c.id.toLowerCase() === q ||
+        c.slug.toLowerCase() === q ||
+        c.name.trim().toLowerCase() === q ||
+        c.name_en.trim().toLowerCase() === q
+    );
+    return matched || null;
+  },
+
+  /**
+   * Fast extraction of all article cards available on the website homepage (and caches live categories)
    */
   async scrapeHomepageCards(): Promise<ScrapedCardSummary[]> {
     const html = await fetchWithTimeout(`${BASE_URL}/`, 6500);
+    // Keep live categories synced whenever homepage is fetched
+    this.extractAndStoreCategoriesFromHtml(html).catch(() => {});
+
     const cardRegex = /<a\s+href="(https:\/\/ntodaynews\.com\/[a-zA-Z0-9\-]+)"[^>]*>([\s\S]*?)<\/a>/g;
     let match: RegExpExecArray | null;
 
@@ -160,44 +267,92 @@ export const ScraperService = {
   },
 
   /**
-   * Scrapes historical older news chronologically for infinite scrolling (page 2, 3, 4...)
+   * Scrapes category-specific paginated cards strictly from https://ntodaynews.com/category/{webCatId}?page={page}
    */
-  async scrapePaginatedCards(page: number, categoryId?: string): Promise<ScrapedCardSummary[]> {
-    try {
-      let pageUrl = `${BASE_URL}/trending?page_latest=${page}`;
-      if (categoryId && categoryId !== 'all') {
-        const catMap: Record<string, number> = {
-          'ఆంధ్రప్రదేశ్': 161,
-          ap: 161,
-          'తెలంగాణ': 1,
-          telangana: 1,
-          'రాజకీయాలు': 162,
-          politics: 162,
-          'క్రైమ్': 163,
-          crime: 163,
-          'సినిమా': 2,
-          cinema: 2,
-          'క్రీడలు': 3,
-          sports: 3,
-        };
-        const catNum = catMap[categoryId.toLowerCase()] || 1;
-        pageUrl = `${BASE_URL}/category/${catNum}?page=${page}`;
-      }
+  async scrapeCategoryCards(
+    webCatId: string,
+    page: number = 1
+  ): Promise<{ cards: ScrapedCardSummary[]; hasMore: boolean; categoryLabel?: string }> {
+    const pageUrl = `${BASE_URL}/category/${webCatId}?page=${page}`;
+    const html = await fetchWithTimeout(pageUrl, 6500);
 
+    // Keep live categories synced if not yet loaded
+    if (liveCategoriesCache.length <= 1) {
+      this.extractAndStoreCategoriesFromHtml(html).catch(() => {});
+    }
+
+    const headingMatch = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+    const categoryHeading = headingMatch
+      ? cleanHtml(headingMatch[1]).replace(/\s*విభాగం$/, '').trim()
+      : undefined;
+
+    const articleRegex = /<article[^>]*>([\s\S]*?)<\/article>/gi;
+    let m: RegExpExecArray | null;
+    const cards: ScrapedCardSummary[] = [];
+    const seen = new Set<string>();
+
+    while ((m = articleRegex.exec(html)) !== null) {
+      const block = m[1];
+      const urlMatch = block.match(/href="(https:\/\/ntodaynews\.com\/[a-zA-Z0-9\-]+)"/i);
+      const imgMatch = block.match(/<img[^>]*src="([^"]+)"/i);
+      const titleMatch = block.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i);
+      const badgeMatch = block.match(/class="[^"]*badge[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+      const dateMatch = block.match(/fa-calendar-alt[^>]*><\/i>\s*([^<]+)/i) || block.match(/fa-clock[^>]*><\/i>\s*([^<]+)/i);
+      const viewsMatch = block.match(/fa-eye[^>]*><\/i>\s*([^<]+)/i);
+
+      if (urlMatch && titleMatch && !seen.has(urlMatch[1])) {
+        const url = urlMatch[1];
+        seen.add(url);
+        cards.push({
+          url,
+          slug: url.replace(`${BASE_URL}/`, ''),
+          imageUrl: normalizeImageUrl(imgMatch ? imgMatch[1] : ''),
+          title: cleanHtml(titleMatch[1]),
+          categoryLabel: badgeMatch ? cleanHtml(badgeMatch[1]) : categoryHeading,
+          rawDate: dateMatch ? cleanHtml(dateMatch[1]) : undefined,
+          rawViews: viewsMatch ? cleanHtml(viewsMatch[1]) : undefined,
+        });
+      }
+    }
+
+    const nextPageLink = `page=${page + 1}`;
+    const hasMore = html.includes(nextPageLink) || html.includes('rel="next"');
+
+    return {
+      cards,
+      hasMore,
+      categoryLabel: categoryHeading,
+    };
+  },
+
+  /**
+   * Scrapes historical older news chronologically for infinite scrolling on the Trending/Latest feed (page 2, 3, 4...)
+   */
+  async scrapePaginatedCards(page: number): Promise<{ cards: ScrapedCardSummary[]; hasMore: boolean }> {
+    try {
+      const pageUrl = `${BASE_URL}/trending?page_latest=${page}`;
       const html = await fetchWithTimeout(pageUrl, 6500);
-      const cardRegex = /<div class="col-md-6 mb-3">([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/g;
-      let m: RegExpExecArray | null;
       const cards: ScrapedCardSummary[] = [];
       const seen = new Set<string>();
 
-      while ((m = cardRegex.exec(html)) !== null) {
-        const block = m[1];
-        const urlMatch = block.match(/href="(https:\/\/ntodaynews\.com\/[a-zA-Z0-9\-]+)"/);
-        const imgMatch = block.match(/src="([^"]+)"/);
-        const titleMatch = block.match(/<h6[^>]*>([\s\S]*?)<\/h6>/);
-        const dateMatch = block.match(/<small[^>]*>[\s\S]*?<\/i>\s*([^<]+)<\/small>/);
+      const skipKeywords = ['/category/', '/live-', '/login', '/signup', '/reporters', '/contact', '/privacy', '/terms', '/editors'];
 
-        if (urlMatch && titleMatch && !seen.has(urlMatch[1])) {
+      // Match both .col-md-6 blocks and generic article cards on trending pages
+      const blockRegex = /<div class="col-md-6 mb-3">([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>|<article[^>]*>([\s\S]*?)<\/article>/gi;
+      let m: RegExpExecArray | null;
+
+      while ((m = blockRegex.exec(html)) !== null) {
+        const block = m[1] || m[2];
+        const urlMatch = block.match(/href="(https:\/\/ntodaynews\.com\/[a-zA-Z0-9\-]+)"/i);
+        if (!urlMatch || skipKeywords.some((kw) => urlMatch[1].includes(kw))) continue;
+
+        const imgMatch = block.match(/src="([^"]+)"/i);
+        const titleMatch = block.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i);
+        const dateMatch =
+          block.match(/<small[^>]*>[\s\S]*?<\/i>\s*([^<]+)<\/small>/i) ||
+          block.match(/fa-clock[^>]*><\/i>\s*([^<]+)/i);
+
+        if (titleMatch && !seen.has(urlMatch[1])) {
           seen.add(urlMatch[1]);
           cards.push({
             url: urlMatch[1],
@@ -209,10 +364,11 @@ export const ScraperService = {
         }
       }
 
-      return cards;
+      const hasMore = html.includes(`page_latest=${page + 1}`) || cards.length >= 10;
+      return { cards, hasMore };
     } catch (err) {
       console.warn(`[ScraperService] Failed to scrape page ${page}:`, err);
-      return [];
+      return { cards: [], hasMore: false };
     }
   },
 
@@ -225,9 +381,8 @@ export const ScraperService = {
     fallbackImg: string
   ): Promise<ScrapedArticleDetail> {
     try {
-      const html = await fetchWithTimeout(url, 4500);
+      const html = await fetchWithTimeout(url, 5000);
 
-      // 1. JSON-LD Structured Data
       let jsonLd: any = null;
       const jsonMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/i);
       if (jsonMatch) {
@@ -238,49 +393,38 @@ export const ScraperService = {
         }
       }
 
-      // 2. Headline
       const titleMatch =
         html.match(/<h1[^>]*id="article-main-title"[^>]*>([\s\S]*?)<\/h1>/i) ||
         html.match(/<h1[^>]*class="news-title"[^>]*>([\s\S]*?)<\/h1>/i);
       const title = titleMatch ? cleanHtml(titleMatch[1]) : jsonLd?.headline || fallbackTitle;
 
-      // 3. Category Badge
-      const catMatch = html.match(/class="category-badge[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+      const catMatch = html.match(/class="[^"]*category-badge[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
       const category = catMatch ? cleanHtml(catMatch[1]) : 'తాజా వార్తలు';
 
-      // 4. District / Location
       const distMatch = html.match(
         /fa-location-dot[\s\S]*?<span class="small fw-bold text-dark">([\s\S]*?)<\/span>/i
       );
       const district = distMatch ? cleanHtml(distMatch[1]) : '';
 
-      // 5. Reporter Name - target the specific reporter name element accurately
       const repMatch =
         html.match(/class="[^"]*reporter-name[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|a)>/i) ||
         html.match(/Posted by\s*:\s*([^<\r\n]+)/i);
       const jsonAuthor = Array.isArray(jsonLd?.author) ? jsonLd.author[0]?.name : jsonLd?.author?.name;
-      const reporterName = repMatch
-        ? cleanHtml(repMatch[1])
-        : jsonAuthor || 'NToday News';
+      const reporterName = repMatch ? cleanHtml(repMatch[1]) : jsonAuthor || 'NToday News';
 
-      // 6. Reporter Area / Desk
-      const areaMatch =
-        html.match(/class="[^"]*reporter-area[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|a)>/i);
+      const areaMatch = html.match(/class="[^"]*reporter-area[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|a)>/i);
       const reporterArea = areaMatch
         ? cleanHtml(areaMatch[1])
         : district
         ? `${district} డెస్క్`
-        : 'DESK';
+        : 'డెస్క్';
 
-      // 7. Reporter Avatar
-      const avatarMatch = html.match(/class="reporter-avatar"[\s\S]*?src="([^"]+)"/i);
+      const avatarMatch = html.match(/class="[^"]*reporter-avatar[^"]*"[\s\S]*?src="([^"]+)"/i);
       const reporterAvatar = avatarMatch ? normalizeImageUrl(avatarMatch[1]) : undefined;
 
-      // 8. Main News Image
       const imgMatch = html.match(/id="main-news-image"[^>]*src="([^"]+)"/i);
       const imageUrl = normalizeImageUrl(imgMatch ? imgMatch[1] : jsonLd?.image?.[0] || fallbackImg);
 
-      // 9. Clean Telugu Body Content
       const contentMatch = html.match(/<div class="news-content">([\s\S]*?)<\/div>\s*<\/div>/i);
       let content = contentMatch ? cleanHtml(contentMatch[1]) : '';
       if (!content && jsonLd?.description) {
@@ -302,14 +446,13 @@ export const ScraperService = {
         publishedAt: jsonLd?.datePublished || new Date().toISOString(),
       };
     } catch {
-      // Graceful fallback if detail fetch times out
       return {
         title: fallbackTitle,
         content: fallbackTitle,
         category: 'తాజా వార్తలు',
         district: '',
         reporterName: 'NToday News',
-        reporterArea: 'DESK',
+        reporterArea: 'డెస్క్',
         imageUrl: normalizeImageUrl(fallbackImg),
         publishedAt: new Date().toISOString(),
       };
@@ -317,7 +460,7 @@ export const ScraperService = {
   },
 
   /**
-   * Fetch live articles from ntodaynews.com with pagination support & caching
+   * Fetch live articles from ntodaynews.com with strict per-category filtering & pagination
    */
   async fetchLiveArticles(options: {
     page?: number;
@@ -325,22 +468,32 @@ export const ScraperService = {
     categoryId?: string;
     limit?: number;
   } = {}): Promise<{ articles: NewsArticle[]; hasMore: boolean; total: number }> {
-    const { page = 1, forceRefresh = false, categoryId, limit = 15 } = options;
+    const { page = 1, forceRefresh = false, categoryId, limit = 12 } = options;
 
-    // 1. Check local offline cache first ONLY for page 1 when not force-refreshing
+    const isCategoryMode = Boolean(categoryId && categoryId !== 'all');
+    const resolvedCat = isCategoryMode ? await this.resolveCategoryInfo(categoryId) : null;
+    const catKey = isCategoryMode ? resolvedCat?.id || categoryId!.trim() : 'all';
+
+    const cacheArticlesKey = `${STORAGE_KEY_ARTICLES_PREFIX}${catKey}`;
+    const cacheTsKey = `${STORAGE_KEY_TIMESTAMP_PREFIX}${catKey}`;
+
+    // 1. Check per-category offline cache ONLY for Page 1 when not force-refreshing
     if (page === 1 && !forceRefresh) {
       try {
-        const cachedRaw = await AsyncStorage.getItem(STORAGE_KEY_ARTICLES);
-        const timestampRaw = await AsyncStorage.getItem(STORAGE_KEY_TIMESTAMP);
+        const cachedRaw = await AsyncStorage.getItem(cacheArticlesKey);
+        const timestampRaw = await AsyncStorage.getItem(cacheTsKey);
         if (cachedRaw) {
           const cachedArticles: NewsArticle[] = JSON.parse(cachedRaw);
           const age = Date.now() - (timestampRaw ? parseInt(timestampRaw, 10) : 0);
           if (cachedArticles.length > 0 && age < CACHE_TTL_MS) {
-            const filtered = this.filterArticles(cachedArticles, categoryId, limit);
             return {
-              articles: filtered,
+              articles: cachedArticles.slice(0, limit).map((a, idx, arr) => ({
+                ...a,
+                cardIndex: idx + 1,
+                totalCards: arr.length,
+              })),
               hasMore: true,
-              total: 500,
+              total: cachedArticles.length,
             };
           }
         }
@@ -350,24 +503,40 @@ export const ScraperService = {
     }
 
     try {
-      // 2. Fetch cards: Page 1 uses Homepage; Page >= 2 uses Paginated trending
       let cards: ScrapedCardSummary[] = [];
-      if (page === 1) {
-        cards = await this.scrapeHomepageCards();
+      let hasMorePages = true;
+      let categoryLabel = resolvedCat?.name || (isCategoryMode ? categoryId : undefined);
+
+      // 2. Fetch live cards: strictly from /category/{id}?page={page} when category is selected
+      if (isCategoryMode) {
+        const webCatId = resolvedCat?.id || (/^\d+$/.test(catKey) ? catKey : undefined);
+        if (!webCatId) {
+          return { articles: [], hasMore: false, total: 0 };
+        }
+        const catRes = await this.scrapeCategoryCards(webCatId, page);
+        cards = catRes.cards;
+        hasMorePages = catRes.hasMore;
+        if (catRes.categoryLabel) {
+          categoryLabel = catRes.categoryLabel;
+        }
       } else {
-        cards = await this.scrapePaginatedCards(page, categoryId);
+        if (page === 1) {
+          cards = await this.scrapeHomepageCards();
+          hasMorePages = true;
+        } else {
+          const paginated = await this.scrapePaginatedCards(page);
+          cards = paginated.cards;
+          hasMorePages = paginated.hasMore;
+        }
       }
 
       if (!cards || cards.length === 0) {
-        if (page > 1) {
-          return { articles: [], hasMore: false, total: 0 };
-        }
-        throw new Error('No articles found');
+        return { articles: [], hasMore: false, total: 0 };
       }
 
       const targetCards = cards.slice(0, Math.max(limit, 12));
 
-      // 3. Batch parallel execution with concurrency of 5
+      // 3. Parallel detail scraping in chunks of 5
       const batchSize = 5;
       const scrapedDetails: ScrapedArticleDetail[] = [];
 
@@ -382,29 +551,39 @@ export const ScraperService = {
       // 4. Transform into full NewsArticle models
       const articles: NewsArticle[] = scrapedDetails.map((detail, idx) => {
         const card = targetCards[idx];
+        const finalTitle = detail.title || card.title;
         const wordCount = detail.content.length;
         const readTimeSec = Math.max(25, Math.min(60, Math.round(wordCount / 12)));
         const summary = generateSnippet(detail.content, 1200);
+        const articleCategory = isCategoryMode
+          ? categoryLabel || detail.category || 'తాజా వార్తలు'
+          : detail.category || card.categoryLabel || 'తాజా వార్తలు';
+        const articleCategoryId = isCategoryMode ? catKey : detail.category || 'all';
 
         return {
-          id: card.slug || `live-p${page}-${idx + 1}`,
+          id: card.slug || `live-${catKey}-p${page}-${idx + 1}`,
           cardIndex: (page - 1) * limit + idx + 1,
           totalCards: (page - 1) * limit + scrapedDetails.length,
           authorName: detail.reporterName || 'NToday News',
-          authorDesk: detail.reporterArea || (detail.district ? `${detail.district} డెస్క్` : 'DESK'),
+          authorDesk: detail.reporterArea || (detail.district ? `${detail.district} డెస్క్` : 'డెస్క్'),
+          authorDesk_en: TranslationService.getCachedSync(detail.reporterArea),
           authorAvatar: detail.reporterAvatar,
           sourceName: 'NTODAY NEWS',
           sourceCredit: 'Source: NTODAY NEWS',
           sourceUrl: card.url,
           externalId: card.slug,
           timeAgo: card.rawDate || 'Just now',
-          title: detail.title || card.title,
+          title: finalTitle,
+          title_en: TranslationService.getCachedSync(finalTitle),
           summary,
+          summary_en: TranslationService.getCachedSync(summary),
           content: detail.content,
+          content_en: TranslationService.getCachedSync(detail.content),
           mediaType: 'image',
           imageUrl: detail.imageUrl || card.imageUrl,
-          category: detail.category || 'తాజా వార్తలు',
-          category_id: detail.category || 'all',
+          category: articleCategory,
+          category_en: TranslationService.getCachedSync(articleCategory),
+          category_id: articleCategoryId,
           likesCount: 0,
           dislikesCount: 0,
           commentsCount: 0,
@@ -415,47 +594,68 @@ export const ScraperService = {
         };
       });
 
-      // 5. Cache Page 1 fresh articles into persistent AsyncStorage
+      // 5. Sort chronologically newest-first using parsed publishedAt timestamps
+      articles.sort((a, b) => {
+        const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+        const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+        return tb - ta;
+      });
+
+      const indexed = articles.map((a, idx) => ({
+        ...a,
+        cardIndex: (page - 1) * limit + idx + 1,
+        totalCards: articles.length,
+      }));
+
+      // 6. Cache Page 1 per category
       if (page === 1) {
         try {
-          await AsyncStorage.setItem(STORAGE_KEY_ARTICLES, JSON.stringify(articles));
-          await AsyncStorage.setItem(STORAGE_KEY_TIMESTAMP, Date.now().toString());
+          await AsyncStorage.setItem(cacheArticlesKey, JSON.stringify(indexed));
+          await AsyncStorage.setItem(cacheTsKey, Date.now().toString());
         } catch (e) {
-          console.warn('[ScraperService] Failed to cache articles:', e);
+          console.warn('[ScraperService] Failed to cache category articles:', e);
         }
       }
 
-      const filtered = this.filterArticles(articles, categoryId, limit);
       return {
-        articles: filtered,
-        hasMore: true,
-        total: 500,
+        articles: indexed,
+        hasMore: hasMorePages,
+        total: indexed.length,
       };
     } catch (err) {
-      console.warn('[ScraperService] Live scrape failed, trying cache or mock fallback:', err);
+      console.warn('[ScraperService] Live scrape failed, checking strict cache:', err);
 
-      // Attempt reading cache even if expired
       if (page === 1) {
         try {
-          const cachedRaw = await AsyncStorage.getItem(STORAGE_KEY_ARTICLES);
+          const cachedRaw = await AsyncStorage.getItem(cacheArticlesKey);
           if (cachedRaw) {
             const cachedArticles: NewsArticle[] = JSON.parse(cachedRaw);
             if (cachedArticles.length > 0) {
-              const filtered = this.filterArticles(cachedArticles, categoryId, limit);
               return {
-                articles: filtered,
+                articles: cachedArticles,
                 hasMore: true,
                 total: cachedArticles.length,
               };
             }
           }
         } catch {
-          // Fallback to MOCK_NEWS_ARTICLES below
+          // Ignore cache error
         }
       }
 
+      if (isCategoryMode) {
+        // Strict filtering: never pollute selected category with unrelated mock articles
+        const catFilterName = resolvedCat?.name || categoryId;
+        const strictMock = this.filterArticles(MOCK_NEWS_ARTICLES, catFilterName, limit);
+        return {
+          articles: strictMock,
+          hasMore: false,
+          total: strictMock.length,
+        };
+      }
+
       return {
-        articles: this.filterArticles(MOCK_NEWS_ARTICLES, categoryId, limit),
+        articles: this.filterArticles(MOCK_NEWS_ARTICLES, undefined, limit),
         hasMore: false,
         total: MOCK_NEWS_ARTICLES.length,
       };
@@ -463,17 +663,17 @@ export const ScraperService = {
   },
 
   /**
-   * Filter and slice articles helper
+   * Filter and slice articles strictly
    */
   filterArticles(articles: NewsArticle[], categoryId?: string, limit?: number): NewsArticle[] {
     let list = articles;
 
     if (categoryId && categoryId !== 'all') {
-      const q = categoryId.toLowerCase();
+      const q = categoryId.trim().toLowerCase();
       list = list.filter((a) => {
-        const cat = (a.category || '').toLowerCase();
-        const catId = (a.category_id || '').toLowerCase();
-        return cat.includes(q) || catId.includes(q) || q.includes(cat);
+        const cat = (a.category || '').trim().toLowerCase();
+        const catId = (a.category_id || '').trim().toLowerCase();
+        return cat === q || catId === q;
       });
     }
 
@@ -493,8 +693,7 @@ export const ScraperService = {
    */
   async fetchArticleBySlug(slug: string): Promise<NewsArticle | null> {
     try {
-      // 1. Check cached articles first
-      const cachedRaw = await AsyncStorage.getItem(STORAGE_KEY_ARTICLES);
+      const cachedRaw = await AsyncStorage.getItem(`${STORAGE_KEY_ARTICLES_PREFIX}all`);
       if (cachedRaw) {
         const cached: NewsArticle[] = JSON.parse(cachedRaw);
         const match = cached.find((a) => a.id === slug || a.externalId === slug);
@@ -503,7 +702,6 @@ export const ScraperService = {
         }
       }
 
-      // 2. Fetch directly from website
       const url = `${BASE_URL}/${slug}`;
       const detail = await this.scrapeArticleDetail(url, 'NToday News', '');
       return {
@@ -512,17 +710,20 @@ export const ScraperService = {
         totalCards: 1,
         authorName: detail.reporterName,
         authorDesk: detail.reporterArea,
+        authorDesk_en: TranslationService.getCachedSync(detail.reporterArea),
         authorAvatar: detail.reporterAvatar,
         sourceName: 'NTODAY NEWS',
         sourceCredit: 'Source: NTODAY NEWS',
         sourceUrl: url,
         timeAgo: 'Today',
         title: detail.title,
+        title_en: TranslationService.getCachedSync(detail.title),
         summary: generateSnippet(detail.content, 1200),
         content: detail.content,
         mediaType: 'image',
         imageUrl: detail.imageUrl,
         category: detail.category,
+        category_en: TranslationService.getCachedSync(detail.category),
         category_id: detail.category,
         likesCount: 0,
         dislikesCount: 0,
@@ -538,20 +739,24 @@ export const ScraperService = {
   },
 
   /**
-   * Return live categories
+   * Dynamically extracts available categories strictly from the live ntodaynews.com website.
+   * Strips out any hardcoded categories that do not exist on the live site.
    */
-  async fetchCategories(): Promise<NewsCategory[]> {
-    return [
-      { id: 'all', name: 'అన్నీ', name_en: 'All Stories', slug: 'all', icon: 'apps' },
-      { id: 'ఆంధ్రప్రదేశ్', name: 'ఆంధ్రప్రదేశ్', name_en: 'Andhra Pradesh', slug: 'ap', icon: 'location' },
-      { id: 'తెలంగాణ', name: 'తెలంగాణ', name_en: 'Telangana', slug: 'telangana', icon: 'location-outline' },
-      { id: 'రాజకీయాలు', name: 'రాజకీయాలు', name_en: 'Politics', slug: 'politics', icon: 'megaphone' },
-      { id: 'క్రైమ్', name: 'క్రైమ్', name_en: 'Crime', slug: 'crime', icon: 'shield-alert' },
-      { id: 'సినిమా', name: 'సినిమా', name_en: 'Cinema', slug: 'cinema', icon: 'film' },
-      { id: 'క్రీడలు', name: 'క్రీడలు', name_en: 'Sports', slug: 'sports', icon: 'football' },
-      { id: 'జాతీయం', name: 'జాతీయం', name_en: 'National', slug: 'national', icon: 'globe' },
-      { id: 'వ్యాపారం', name: 'వ్యాపారం', name_en: 'Business', slug: 'business', icon: 'trending-up' },
-      { id: 'వ్యవసాయం', name: 'వ్యవసాయం', name_en: 'Agriculture', slug: 'agriculture', icon: 'leaf' },
-    ];
+  async fetchCategories(forceRefresh = false): Promise<NewsCategory[]> {
+    if (!forceRefresh && liveCategoriesCache.length > 1) {
+      return liveCategoriesCache;
+    }
+
+    try {
+      const html = await fetchWithTimeout(`${BASE_URL}/`, 6000);
+      const extracted = await this.extractAndStoreCategoriesFromHtml(html);
+      if (extracted.length > 1) {
+        return extracted;
+      }
+    } catch (err) {
+      console.warn('[ScraperService] Failed to fetch live categories:', err);
+    }
+
+    return await this.getCachedCategories();
   },
 };

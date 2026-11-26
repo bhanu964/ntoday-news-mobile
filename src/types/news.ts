@@ -16,6 +16,7 @@ export interface NewsArticle {
   totalCards: number;
   authorName: string;
   authorDesk: string;
+  authorDesk_en?: string;
   authorAvatar?: string;
   sourceName: string;
   sourceCredit?: string;
@@ -33,6 +34,7 @@ export interface NewsArticle {
   imageUrl: string;
   videoUrl?: string;
   category: string;
+  category_en?: string;
   category_id?: string;
   likesCount: number;
   dislikesCount?: number;

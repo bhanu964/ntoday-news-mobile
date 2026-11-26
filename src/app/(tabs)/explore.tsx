@@ -1,19 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ExploreView } from '@/components/ExploreView';
-import { StorageService } from '@/services/storageService';
 import { TopStory } from '@/types/news';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function ExploreTabScreen() {
   const router = useRouter();
-  const [isTelugu, setIsTelugu] = useState<boolean>(true);
-
-  useEffect(() => {
-    StorageService.getLanguage().then((lang) => {
-      setIsTelugu(lang === 'te');
-    });
-  }, []);
+  const { isTelugu } = useLanguage();
 
   const handleStorySelect = (story: TopStory) => {
     if (story.id) {

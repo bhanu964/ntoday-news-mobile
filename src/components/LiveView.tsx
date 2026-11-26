@@ -14,18 +14,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { MOCK_NEWS_ARTICLES } from '@/data/mockNews';
 import { NewsArticle } from '@/types/news';
 import { ArticlesService } from '@/services/articlesService';
-import { TRANSLATIONS } from '@/constants/translations';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface LiveViewProps {
   isTelugu?: boolean;
 }
 
-export function LiveView({ isTelugu = true }: LiveViewProps) {
+export function LiveView({ isTelugu: propIsTelugu }: LiveViewProps) {
   const [updates, setUpdates] = useState<NewsArticle[]>(MOCK_NEWS_ARTICLES);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const t = TRANSLATIONS[isTelugu ? 'te' : 'en'];
+  const { isTelugu: ctxIsTelugu, t } = useLanguage();
+  const isTelugu = propIsTelugu !== undefined ? propIsTelugu : ctxIsTelugu;
 
   const loadLiveFeed = useCallback(async () => {
     try {

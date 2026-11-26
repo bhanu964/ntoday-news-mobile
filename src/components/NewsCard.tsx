@@ -172,10 +172,10 @@ export function NewsCard({
 
   // Dynamic bilingual text
   const displayTitle = !isTelugu && article.title_en ? article.title_en : article.title;
-  // Clean body preview: remove multiple consecutive newlines to eliminate empty vertical gaps
+  // Clean body preview: prioritize complete content so the snippet has enough text to naturally fill the available lines
   const rawBody = !isTelugu
-    ? (article.summary_en || article.summary || article.content_en || article.content || '')
-    : (article.summary || article.content || '');
+    ? (article.content_en || article.content || article.summary_en || article.summary || '')
+    : (article.content || article.summary || '');
   const displayBody = rawBody
     .replace(/\r\n/g, '\n')
     .replace(/\n\s*\n+/g, '\n')
@@ -329,9 +329,20 @@ export function NewsCard({
     return String(count);
   };
 
-  const reporterName = article.authorName || 'Srinivas';
-  const reporterDesk = article.authorDesk || 'Desk';
-  const showDesk = reporterDesk && !reporterName.toLowerCase().includes(reporterDesk.toLowerCase());
+  // In the bottom-left photo badge, remove redundant "NToday News" branding (already shown at top-left)
+  const rawAuthor = (article.authorName || '').trim();
+  const rawDesk = (article.authorDesk || '').trim();
+  const isGenericChannelName = !rawAuthor || rawAuthor.toLowerCase().includes('ntoday');
+  const reporterPersonName = isGenericChannelName ? '' : rawAuthor;
+  const deskOrLocation = rawDesk && !rawDesk.toLowerCase().includes('ntoday')
+    ? rawDesk
+    : (article.category || 'డెస్క్');
+
+  const bottomBadgeLabel = reporterPersonName
+    ? (deskOrLocation && !reporterPersonName.toLowerCase().includes(deskOrLocation.toLowerCase())
+        ? `${reporterPersonName} • ${deskOrLocation}`
+        : reporterPersonName)
+    : deskOrLocation;
 
   return (
     <View
@@ -370,55 +381,54 @@ export function NewsCard({
             <Text style={styles.photoTopBrandText}>NTODAY NEWS</Text>
           </View>
 
-          {/* 2. Reporter Name Badge at BOTTOM-LEFT of photo (Small, sleek, with custom mic symbol) */}
-          <View style={styles.photoReporterBottomBadge}>
-            <Image
-              source={require('../../assets/images/ntoday-reporter-mic.png')}
-              style={styles.reporterMicSmallIcon}
-              resizeMode="contain"
-            />
-            <Text style={styles.photoReporterSmallName} numberOfLines={1}>
-              {reporterName}
-            </Text>
-            {showDesk && (
-              <Text style={styles.photoReporterSmallDesk} numberOfLines={1}>
-                {` • ${reporterDesk}`}
+          {/* 2. Reporter / Location Badge at BOTTOM-LEFT of photo (No redundant "NToday News") */}
+          {bottomBadgeLabel ? (
+            <View style={styles.photoReporterBottomBadge}>
+              <Image
+                source={require('../../assets/images/ntoday-reporter-mic.png')}
+                style={styles.reporterMicSmallIcon}
+                resizeMode="contain"
+              />
+              <Text style={styles.photoReporterSmallName} numberOfLines={1}>
+                {bottomBadgeLabel}
               </Text>
-            )}
-          </View>
+            </View>
+          ) : null}
         </View>
 
-        {/* 2. TEXT AREA: HEADLINE (MAX 2 LINES) + BODY PREVIEW + READ MORE PILL */}
+        {/* 2. TEXT AREA: HEADLINE (MAX 2 LINES) + EXPANDED BODY PREVIEW + BOTTOM READ MORE PILL */}
         <View style={styles.contentContainer}>
-          {/* Headline */}
-          <Text
-            style={[
-              styles.headlineText,
-              {
-                color: theme.text,
-                fontSize: headlineFontSize,
-                lineHeight: headlineLineHeight,
-              },
-            ]}
-            numberOfLines={2}>
-            {displayTitle}
-          </Text>
+          <View style={styles.textWrapper}>
+            {/* Headline */}
+            <Text
+              style={[
+                styles.headlineText,
+                {
+                  color: theme.text,
+                  fontSize: headlineFontSize,
+                  lineHeight: headlineLineHeight,
+                },
+              ]}
+              numberOfLines={2}>
+              {displayTitle}
+            </Text>
 
-          {/* Body Preview Text */}
-          <Text
-            style={[
-              styles.bodyText,
-              {
-                color: theme.textSecondary,
-                fontSize: bodyFontSize,
-                lineHeight: bodyLineHeight,
-              },
-            ]}
-            numberOfLines={5}>
-            {displayBody}
-          </Text>
+            {/* Body Preview Text - dynamically fills the available vertical space */}
+            <Text
+              style={[
+                styles.bodyText,
+                {
+                  color: theme.textSecondary,
+                  fontSize: bodyFontSize,
+                  lineHeight: bodyLineHeight,
+                },
+              ]}
+              numberOfLines={effectiveHeight < 660 ? 6 : effectiveHeight < 760 ? 7 : 9}>
+              {displayBody}
+            </Text>
+          </View>
 
-          {/* Highly Visible Read More Button */}
+          {/* Highly Visible Read More Button - anchored towards bottom of content area */}
           <TouchableOpacity
             style={styles.readMorePill}
             onPress={() => setShowFullArticleModal(true)}
@@ -667,13 +677,18 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
   },
-  // Text area starts about 8px below photo, neatly aligned on the left
+  // Text area starts about 8px below photo, filling available vertical space down to metaRow
   contentContainer: {
+    flex: 1,
     paddingLeft: 14,
     paddingRight: 14,
     paddingTop: 8,
-    justifyContent: 'flex-start',
+    paddingBottom: 38,
+    justifyContent: 'space-between',
     overflow: 'hidden',
+  },
+  textWrapper: {
+    flexShrink: 1,
   },
   headlineText: {
     fontWeight: '800',
@@ -693,7 +708,8 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 16,
     gap: 6,
-    marginTop: 8,
+    marginTop: 6,
+    marginBottom: 2,
     borderWidth: 0.8,
     borderColor: '#3F3F46',
   },

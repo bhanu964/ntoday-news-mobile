@@ -31,8 +31,8 @@ function cleanHtml(rawHtml?: string | null): string {
     .trim();
 }
 
-// Generate clean summary without cutting mid-word
-function generateSnippet(fullText: string, targetLength: number = 220): string {
+// Generate clean summary without cutting mid-word (generates ~600 chars to comfortably fill mobile news feed cards)
+function generateSnippet(fullText: string, targetLength: number = 600): string {
   if (!fullText) return '';
   const singleLine = fullText.replace(/\n+/g, ' ').trim();
   if (singleLine.length <= targetLength) return singleLine;
@@ -41,9 +41,9 @@ function generateSnippet(fullText: string, targetLength: number = 220): string {
   // Find last space or punctuation mark
   const lastSpace = slice.lastIndexOf(' ');
   const lastPeriod = slice.lastIndexOf('.');
-  const cutIndex = Math.max(lastPeriod > 100 ? lastPeriod + 1 : -1, lastSpace);
+  const cutIndex = Math.max(lastPeriod > 200 ? lastPeriod + 1 : -1, lastSpace);
 
-  if (cutIndex > 100) {
+  if (cutIndex > 200) {
     return slice.slice(0, cutIndex).trim();
   }
   return slice.trim();
@@ -384,7 +384,7 @@ export const ScraperService = {
         const card = targetCards[idx];
         const wordCount = detail.content.length;
         const readTimeSec = Math.max(25, Math.min(60, Math.round(wordCount / 12)));
-        const summary = generateSnippet(detail.content, 220);
+        const summary = generateSnippet(detail.content, 600);
 
         return {
           id: card.slug || `live-p${page}-${idx + 1}`,
@@ -517,7 +517,7 @@ export const ScraperService = {
         sourceUrl: url,
         timeAgo: 'Today',
         title: detail.title,
-        summary: generateSnippet(detail.content, 220),
+        summary: generateSnippet(detail.content, 600),
         content: detail.content,
         mediaType: 'image',
         imageUrl: detail.imageUrl,

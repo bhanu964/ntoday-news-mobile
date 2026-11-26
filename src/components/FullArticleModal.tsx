@@ -77,8 +77,11 @@ export function FullArticleModal({
     });
   };
 
-  const reporterName = article.authorName || 'NToday News';
-  const reporterDesk = article.authorDesk || 'DESK';
+  const rawAuthor = (article.authorName || '').trim();
+  const rawDesk = (article.authorDesk || '').trim();
+  const isGenericChannelName = !rawAuthor || rawAuthor.toLowerCase().includes('ntoday');
+  const reporterName = isGenericChannelName ? (rawDesk || 'డెస్క్') : rawAuthor;
+  const reporterDesk = isGenericChannelName ? '' : rawDesk;
 
   return (
     <Modal

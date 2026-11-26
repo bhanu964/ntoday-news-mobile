@@ -368,11 +368,14 @@ export function NewsCard({
             {/* 2. Sleek Divider */}
             <View style={styles.photoReporterDivider} />
 
-            {/* 3. Reporter Section (Mic Disc + Name + Desk) */}
+            {/* 3. Reporter Section (Broadcast Mic Symbol with N Today News Logo + Name + Desk) */}
             <View style={styles.photoReporterSection}>
-              <View style={styles.reporterMicDisc}>
-                <Ionicons name="mic" size={10} color="#FFFFFF" />
-              </View>
+              {/* Official Broadcast Reporter Mic with N Today News Logo */}
+              <Image
+                source={require('../../assets/images/ntoday-reporter-mic.png')}
+                style={styles.reporterMicIcon}
+                resizeMode="contain"
+              />
               <Text style={styles.photoReporterName} numberOfLines={1}>
                 {reporterName}
               </Text>
@@ -627,14 +630,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexShrink: 1,
   },
-  reporterMicDisc: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#E50914',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 4.5,
+  reporterMicIcon: {
+    width: 22,
+    height: 22,
+    marginRight: 5,
   },
   photoReporterName: {
     color: '#FFFFFF',

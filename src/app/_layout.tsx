@@ -1,24 +1,37 @@
 import { DarkTheme, ThemeProvider, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LanguageProvider } from '@/context/LanguageContext';
+import { LaunchSplashOverlay } from '@/components/LaunchSplashOverlay';
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     ...Ionicons.font,
   });
+  const [splashImageReady, setSplashImageReady] = useState(false);
+
+  const assetsReady = Boolean(loaded || error);
 
   useEffect(() => {
-    if (loaded || error) {
+    if (assetsReady && splashImageReady) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [loaded, error]);
+  }, [assetsReady, splashImageReady]);
+
+  // Safety fallback in case splashImageReady event is delayed
+  useEffect(() => {
+    if (!assetsReady) return;
+    const fallback = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, 1200);
+    return () => clearTimeout(fallback);
+  }, [assetsReady]);
 
   // Set web document styles for 100dvh viewport and prevent pull-to-refresh interference on mobile browsers
   useEffect(() => {
@@ -49,19 +62,23 @@ export default function RootLayout() {
     }
   }, []);
 
-  if (!loaded && !error) {
-    return <View style={{ flex: 1, backgroundColor: '#121214' }} />;
-  }
-
   return (
     <SafeAreaProvider>
       <LanguageProvider>
         <ThemeProvider value={DarkTheme}>
           <View style={styles.webOuter}>
             <View style={styles.webInner}>
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="index" options={{ headerShown: false }} />
-              </Stack>
+              {assetsReady ? (
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="index" options={{ headerShown: false }} />
+                </Stack>
+              ) : (
+                <View style={{ flex: 1, backgroundColor: '#050B2E' }} />
+              )}
+              <LaunchSplashOverlay
+                readyToStartTimer={assetsReady}
+                onImageReady={() => setSplashImageReady(true)}
+              />
             </View>
           </View>
         </ThemeProvider>

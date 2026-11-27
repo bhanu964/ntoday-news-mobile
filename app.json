@@ -29,9 +29,30 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#050B2E",
+          "image": "./assets/images/ntoday-official-logo.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#050B2E",
+            "image": "./assets/images/ntoday-official-logo.png"
+          },
+          "android": {
+            "backgroundColor": "#050B2E",
+            "image": "./assets/images/ntoday-official-logo.png",
+            "imageWidth": 200,
+            "resizeMode": "contain"
+          },
+          "ios": {
+            "backgroundColor": "#050B2E",
+            "image": "./assets/images/splash-screen.png",
+            "resizeMode": "cover",
+            "enableFullScreenImage_legacy": true,
+            "dark": {
+              "backgroundColor": "#050B2E",
+              "image": "./assets/images/splash-screen.png"
+            }
+          }
         }
       ],
       "expo-video"

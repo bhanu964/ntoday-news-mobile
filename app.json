@@ -1,21 +1,25 @@
 {
   "expo": {
-    "name": "NTODAY NEWS",
-    "slug": "ntoday-news-mobile",
+    "name": "N Today News",
+    "slug": "n-today-news",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": ["ntoday", "ntodaynewsmobile"],
+    "icon": "./assets/icon.png",
+    "scheme": [
+      "ntoday",
+      "ntodaynewsmobile"
+    ],
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "bundleIdentifier": "com.ntodaynews.app",
+      "icon": "./assets/icon.png"
     },
     "android": {
+      "package": "com.ntodaynews.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#020D23",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundImage": "./assets/images/android-icon-background.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -29,28 +33,32 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#050B2E",
-          "image": "./assets/images/ntoday-official-logo.png",
+          "backgroundColor": "#020D23",
+          "image": "./assets/splash.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "dark": {
-            "backgroundColor": "#050B2E",
-            "image": "./assets/images/ntoday-official-logo.png"
+            "backgroundColor": "#020D23",
+            "image": "./assets/splash.png"
           },
           "android": {
-            "backgroundColor": "#050B2E",
+            "backgroundColor": "#020D23",
             "image": "./assets/images/ntoday-official-logo.png",
             "imageWidth": 200,
-            "resizeMode": "contain"
+            "resizeMode": "contain",
+            "dark": {
+              "backgroundColor": "#020D23",
+              "image": "./assets/images/ntoday-official-logo.png"
+            }
           },
           "ios": {
-            "backgroundColor": "#050B2E",
-            "image": "./assets/images/splash-screen.png",
-            "resizeMode": "cover",
+            "backgroundColor": "#020D23",
+            "image": "./assets/splash.png",
+            "resizeMode": "contain",
             "enableFullScreenImage_legacy": true,
             "dark": {
-              "backgroundColor": "#050B2E",
-              "image": "./assets/images/splash-screen.png"
+              "backgroundColor": "#020D23",
+              "image": "./assets/splash.png"
             }
           }
         }
@@ -60,6 +68,17 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "38e2117d-ba99-471a-a477-8fd598a9acea"
+      }
+    },
+    "owner": "bhanu_cheg"
   }
 }

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Alert, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MOCK_NEWS_ARTICLES } from '@/data/mockNews';
 import { ArticlesService } from '@/services/articlesService';
 import { NewsArticle } from '@/types/news';
 import { useLanguage } from '@/context/LanguageContext';
@@ -15,18 +14,32 @@ export function VideosView({ isTelugu: propIsTelugu }: VideosViewProps) {
   const { isTelugu: ctxIsTelugu, t } = useLanguage();
   const isTelugu = propIsTelugu !== undefined ? propIsTelugu : ctxIsTelugu;
   const { height: windowHeight } = useWindowDimensions();
-  const [currentVideo, setCurrentVideo] = useState<NewsArticle>(
-    MOCK_NEWS_ARTICLES.find((a) => a.videoUrl) || MOCK_NEWS_ARTICLES[0]
-  );
+  const [currentVideo, setCurrentVideo] = useState<NewsArticle | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    ArticlesService.fetchArticles().then((res) => {
-      const videoArticle = res.articles.find((a) => a.videoUrl || a.mediaType === 'video');
-      if (videoArticle) {
+    ArticlesService.fetchArticles()
+      .then((res) => {
+        const videoArticle =
+          res.articles.find((a) => a.videoUrl || a.mediaType === 'video') ||
+          res.articles[0] ||
+          null;
         setCurrentVideo(videoArticle);
-      }
-    });
+      })
+      .finally(() => setLoading(false));
   }, []);
+
+  if (loading || !currentVideo) {
+    return (
+      <View style={[styles.container, { height: windowHeight - 120, alignItems: 'center', justifyContent: 'center' }]}>
+        {loading ? (
+          <ActivityIndicator size="large" color="#E50914" />
+        ) : (
+          <Text style={{ color: '#A1A1AA', fontSize: 14 }}>{t.noNewsTitle}</Text>
+        )}
+      </View>
+    );
+  }
 
   const displayTitle = !isTelugu && currentVideo.title_en ? currentVideo.title_en : currentVideo.title;
   const displayContent = !isTelugu && currentVideo.content_en ? currentVideo.content_en : currentVideo.content;

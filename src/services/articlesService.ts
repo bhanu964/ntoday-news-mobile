@@ -2,7 +2,6 @@ import { supabase, isSupabaseReady } from './supabaseClient';
 import { APP_CONFIG } from '@/config/appConfig';
 import { NewsArticle, TopStory, NewsCategory } from '@/types/news';
 import { ArticleRow, CategoryRow } from '@/types/database';
-import { MOCK_NEWS_ARTICLES, TOP_STORIES } from '@/data/mockNews';
 import { ScraperService } from './scraperService';
 
 export interface FetchArticlesParams {
@@ -20,6 +19,7 @@ export interface FetchArticlesResult {
   hasMore: boolean;
   total: number;
   isFallback: boolean;
+  error?: string;
 }
 
 // Helper to format ISO timestamp into human-readable relative time (e.g. "12min ago")
@@ -73,7 +73,6 @@ function mapRowToArticle(row: ArticleRow, index: number, total: number): NewsArt
 export const ArticlesService = {
   /**
    * Fetch paginated published articles for the configured channel.
-   * Falls back to MOCK_NEWS_ARTICLES on network or config failures.
    */
   async fetchArticles(params: FetchArticlesParams = {}): Promise<FetchArticlesResult> {
     const channelId = params.channelId || APP_CONFIG.channelId;
@@ -92,7 +91,7 @@ export const ArticlesService = {
         });
 
         if (liveResult) {
-          if (liveResult.articles.length > 0 || page > 1) {
+          if (liveResult.articles.length > 0 || (page > 1 && !liveResult.error)) {
             return {
               articles: liveResult.articles,
               hasMore: liveResult.hasMore,
@@ -100,15 +99,28 @@ export const ArticlesService = {
               isFallback: false,
             };
           }
+          if (liveResult.error) {
+            return {
+              articles: [],
+              hasMore: false,
+              total: 0,
+              isFallback: true,
+              error: liveResult.error,
+            };
+          }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('[ArticlesService] Live scraper failed:', err);
+        return {
+          articles: [],
+          hasMore: false,
+          total: 0,
+          isFallback: true,
+          error: err?.message || 'Failed to load live news',
+        };
       }
 
-      if (params.categoryId && params.categoryId !== 'all') {
-        return { articles: [], hasMore: false, total: 0, isFallback: true };
-      }
-      return ArticlesService.getFallbackArticles(params);
+      return { articles: [], hasMore: false, total: 0, isFallback: false };
     }
 
     try {
@@ -158,14 +170,12 @@ export const ArticlesService = {
         } catch {
           // Fall through below
         }
-        if (page === 1) {
-          return ArticlesService.getFallbackArticles(params);
-        }
         return {
           articles: [],
           hasMore: false,
           total: count ?? 0,
-          isFallback: false,
+          isFallback: Boolean(error),
+          error: error?.message,
         };
       }
 
@@ -180,7 +190,7 @@ export const ArticlesService = {
         total: totalCount,
         isFallback: false,
       };
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[ArticlesService] Fetch error, attempting live scraper:', err);
       try {
         const liveResult = await ScraperService.fetchLiveArticles({
@@ -198,57 +208,20 @@ export const ArticlesService = {
           };
         }
       } catch {
-        // Fallback to mock
+        // Ignore secondary failure
       }
-      return ArticlesService.getFallbackArticles(params);
+      return {
+        articles: [],
+        hasMore: false,
+        total: 0,
+        isFallback: true,
+        error: err?.message || 'Failed to load live news',
+      };
     }
   },
 
   /**
-   * Helper that filters mock data matching the requested parameters.
-   */
-  getFallbackArticles(params: FetchArticlesParams): FetchArticlesResult {
-    let list = [...MOCK_NEWS_ARTICLES];
-
-    if (params.categoryId && params.categoryId !== 'all') {
-      list = list.filter(
-        (a) => a.category === params.categoryId || a.category_id === params.categoryId
-      );
-    }
-
-    if (params.isBreaking) {
-      list = list.filter((a) => a.isBreaking);
-    }
-
-    if (params.searchQuery && params.searchQuery.trim()) {
-      const q = params.searchQuery.toLowerCase();
-      list = list.filter(
-        (a) =>
-          a.title.toLowerCase().includes(q) ||
-          (a.title_en && a.title_en.toLowerCase().includes(q)) ||
-          a.content.toLowerCase().includes(q)
-      );
-    }
-
-    const page = params.page ?? 1;
-    const limit = params.limit ?? APP_CONFIG.articlesPerPage;
-    const offset = (page - 1) * limit;
-    const paginated = list.slice(offset, offset + limit);
-
-    return {
-      articles: paginated.map((a, idx) => ({
-        ...a,
-        cardIndex: offset + idx + 1,
-        totalCards: list.length,
-      })),
-      hasMore: offset + limit < list.length,
-      total: list.length,
-      isFallback: true,
-    };
-  },
-
-  /**
-   * Fetch an individual article by ID from Supabase, live scraper, or fallback mock data.
+   * Fetch an individual article by ID from Supabase or live scraper.
    */
   async fetchArticleById(id: string): Promise<NewsArticle | null> {
     if (isSupabaseReady() && supabase) {
@@ -272,13 +245,7 @@ export const ArticlesService = {
       const scraped = await ScraperService.fetchArticleBySlug(id);
       if (scraped) return scraped;
     } catch {
-      // Fallback below
-    }
-
-    // Search local fallback mock articles
-    const mock = MOCK_NEWS_ARTICLES.find((a) => a.id === id);
-    if (mock) {
-      return { ...mock, cardIndex: 1, totalCards: 1 };
+      // Ignore error
     }
 
     return null;
@@ -333,10 +300,10 @@ export const ArticlesService = {
         }));
       }
     } catch {
-      // Fallback to TOP_STORIES
+      // Return empty list instead of fake mock stories
     }
 
-    return TOP_STORIES;
+    return [];
   },
 
   /**

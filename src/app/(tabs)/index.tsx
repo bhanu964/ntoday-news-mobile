@@ -42,6 +42,7 @@ export default function FeedTabScreen() {
   const {
     articles,
     loading,
+    error,
     hasMore,
     loadMore,
     refresh,
@@ -190,13 +191,34 @@ export default function FeedTabScreen() {
           </View>
         ) : filteredArticles.length === 0 ? (
           <View style={styles.emptyFeedBox}>
-            <Ionicons name="checkmark-done-circle" size={56} color="#E50914" />
+            <Ionicons
+              name={error ? 'cloud-offline-outline' : 'checkmark-done-circle'}
+              size={56}
+              color="#E50914"
+            />
             <Text style={styles.emptyFeedTitle}>
-              {activeFilter === 'unread' ? t.allCaughtUpTitle : t.noNewsTitle}
+              {error
+                ? t.networkErrorTitle
+                : activeFilter === 'unread'
+                ? t.allCaughtUpTitle
+                : t.noNewsTitle}
             </Text>
             <Text style={styles.emptyFeedSubtitle}>
-              {activeFilter === 'unread' ? t.allCaughtUpSubtitle : t.noNewsSubtitle}
+              {error
+                ? t.networkErrorSubtitle
+                : activeFilter === 'unread'
+                ? t.allCaughtUpSubtitle
+                : t.noNewsSubtitle}
             </Text>
+            {error ? (
+              <Text
+                style={[
+                  styles.emptyFeedSubtitle,
+                  { color: '#71717A', fontSize: 11, marginTop: -12, marginBottom: 18 },
+                ]}>
+                {error}
+              </Text>
+            ) : null}
             <TouchableOpacity
               style={styles.resetFeedBtn}
               onPress={() => {
@@ -205,7 +227,9 @@ export default function FeedTabScreen() {
                 refresh();
                 reelsFeedRef.current?.scrollToIndex(0, false);
               }}>
-              <Text style={styles.resetFeedBtnText}>{t.viewAllBtn}</Text>
+              <Text style={styles.resetFeedBtnText}>
+                {error ? t.retryBtn : t.viewAllBtn}
+              </Text>
             </TouchableOpacity>
           </View>
         ) : (

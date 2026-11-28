@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { TOP_STORIES, PLAYLIST_STORIES } from '@/data/mockNews';
+import { PLAYLIST_STORIES } from '@/data/mockNews';
 import { TopStory } from '@/types/news';
 import { ArticlesService } from '@/services/articlesService';
 import { useLanguage } from '@/context/LanguageContext';
@@ -24,7 +24,7 @@ interface ExploreViewProps {
 export function ExploreView({ onStorySelect, onOpenAccount, isTelugu: propIsTelugu }: ExploreViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isPlayingHeadlines, setIsPlayingHeadlines] = useState(false);
-  const [stories, setStories] = useState<TopStory[]>(TOP_STORIES);
+  const [stories, setStories] = useState<TopStory[]>([]);
 
   const { isTelugu: ctxIsTelugu, t } = useLanguage();
   const isTelugu = propIsTelugu !== undefined ? propIsTelugu : ctxIsTelugu;

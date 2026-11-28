@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { AppState } from 'react-native';
 import { NewsArticle } from '@/types/news';
 import { ArticlesService, FetchArticlesParams } from '@/services/articlesService';
 import { StorageService } from '@/services/storageService';
@@ -157,6 +158,7 @@ export function useArticles(options: UseArticlesOptions = {}) {
         setHasMore(result.hasMore);
         setTotal(result.total);
         setIsFallback(result.isFallback);
+        setError(result.error || null);
         setPage(pageNum);
 
         // Translate remaining items in background while user reads
@@ -185,6 +187,16 @@ export function useArticles(options: UseArticlesOptions = {}) {
       fetchArticlesData(1);
     }
   }, [categoryId, isBreaking, searchQuery, autoFetch]);
+
+  // Auto-retry when returning to foreground if initial live load failed or list is empty
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && autoFetch && (error || isFallback) && articles.length === 0) {
+        fetchArticlesData(1, true);
+      }
+    });
+    return () => sub.remove();
+  }, [autoFetch, error, isFallback, articles.length, fetchArticlesData]);
 
   // Whenever user switches language to English, translate loaded articles progressively
   useEffect(() => {

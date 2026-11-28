@@ -21,11 +21,14 @@ export const TRANSLATIONS = {
     savedBookmarksBanner: '🔖 సేవ్ చేసిన బుక్‌మార్క్స్',
     categoryBanner: '📂 కేటగిరీ: ',
 
-    // Empty Feed
+    // Empty Feed & Error Retry
     allCaughtUpTitle: 'మీరు అన్ని తాజా వార్తలను చదివేశారు! 🎉',
     allCaughtUpSubtitle: 'చదవని వార్తలు లేవు.',
     noNewsTitle: 'వార్తలు అందుబాటులో లేవు',
     noNewsSubtitle: 'ఈ విభాగంలో ప్రస్తుతానికి వార్తలు లేవు.',
+    networkErrorTitle: 'లైవ్ వార్తలు లోడ్ కాలేదు',
+    networkErrorSubtitle: 'మీ ఇంటర్నెట్ కనెక్షన్ తనిఖీ చేసి మళ్లీ ప్రయత్నించండి.',
+    retryBtn: 'మళ్లీ ప్రయత్నించండి (Retry)',
     viewAllBtn: 'అన్ని వార్తలను చూడండి (View All)',
 
     // Card Toolbar & Alerts
@@ -115,11 +118,14 @@ export const TRANSLATIONS = {
     savedBookmarksBanner: '🔖 Saved Bookmarks',
     categoryBanner: '📂 Category: ',
 
-    // Empty Feed
+    // Empty Feed & Error Retry
     allCaughtUpTitle: "You're all caught up! 🎉",
     allCaughtUpSubtitle: 'No unread news stories remaining.',
     noNewsTitle: 'No Stories Available',
     noNewsSubtitle: 'No articles found in this category right now.',
+    networkErrorTitle: 'Unable to Load Live News',
+    networkErrorSubtitle: 'Please check your internet connection and tap Retry.',
+    retryBtn: 'Retry Now',
     viewAllBtn: 'View All Stories',
 
     // Card Toolbar & Alerts

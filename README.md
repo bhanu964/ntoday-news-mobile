@@ -1,192 +1,155 @@
-# NTODAY NEWS — Mobile Application 📱
+# N Today News — Mobile Application 📱
 
-A high-performance, short-form mobile news application built with **React Native**, **Expo SDK 58**, and **TypeScript**, specifically designed for **NTODAY NEWS** ([ntodaynews.com](https://ntodaynews.com)).
+A short-form Telugu & English mobile news application built with **React Native**, **Expo SDK 58**, **Expo Router**, and **TypeScript**, powered by live stories from [ntodaynews.com](https://ntodaynews.com).
 
-The app delivers an **Instagram Reels-style full-screen, vertically swipeable news experience**, tailored with authentic Telugu journalism, rich media previews (photo & video), TTS audio countdowns, interactive reader comments, and instant feedback submission.
+The app delivers a full-screen, vertically swipeable **Reels-style news feed** with dynamic live category filtering, instant Telugu-to-English translation, tap-to-toggle immersive chrome, full article reading modals, native splash screens, and ready-to-install Android APK builds via EAS.
 
 ---
 
-## 🌟 Key Features
+## 🌟 Implemented Features
 
-* **Instagram Reels-Style Vertical Feed:**
-  * Strict **1 Swipe = Exactly 1 Story** physics powered by a native paging engine (`disableIntervalMomentum`, `snapToInterval`, and clamped drag boundaries).
-  * Smooth, relaxed deceleration rate (`0.998`) for a calm, premium reading experience without skipping multiple cards.
-  * Web CSS scroll-snap (`scroll-snap-type: y mandatory`, `scroll-snap-stop: always`) for desktop and mobile browser compatibility.
-  * Zero automatic advancement; unread session snapshotting keeps stories anchored while reading.
-
-* **Telugu & English Typography:**
-  * Dynamic `[తె A]` language toggle on the navigation bar.
-  * Formatted headlines, source attribution strips, time-ago indicators, and author desk tags.
-
-* **Upper Media Section with Curved Borders:**
-  * Dynamic photo & video viewer with `borderRadius: 18`.
-  * Background image fallback layer prevents blank or black screens even during network lag.
-  * Loop, mute/unmute, and play/pause controls powered by `expo-video`.
-
-* **Interactive Top Navigation Bar:**
-  * Official **NTODAY NEWS** logo branding.
-  * Segmented filter pills: **Latest**, **Unread** (with real-time unread badge counter), and **Feedback**.
-  * Quick-access **Bookmarks / Saved Stories** toggle.
-  * **Category Filter Modal** supporting 11 news categories (రాజకీయాలు, సినిమా, క్రైమ్, బిజినెస్, విద్య, etc.).
-
-* **Engaging Bottom Sheet Modals:**
-  * **Comments Sheet:** Read user discussions and submit new comments in real time.
-  * **Feedback Sheet:** Rate experience with stars, select category chips (Bug, Suggestion, Content), and send feedback.
-  * **Account Screen:** User profile, bookmarked articles, saved shorts, preferences, and reporter submission portal.
-
-* **Action Toolbar on Every News Card:**
-  * Social sharing via native share sheet and WhatsApp deep linking (`whatsapp://send`).
-  * Like / Dislike reaction buttons with live counters.
-  * TTS Audio Bulletin simulation with animated countdown timer.
-
-* **Explore & Audio Headlines:**
-  * Full-text search with instant filtering.
-  * "Listen to the news" hands-free audio headline banner.
-  * "Top now" numbered leaderboard of trending stories.
+- **Cold-Launch Portrait Splash Screen (`LaunchSplashOverlay.tsx` & `expo-splash-screen`)**
+  - Uses `#020D23` native splash background with custom Android/iOS launcher icons (`assets/icon.png`) and full-screen portrait startup graphic (`assets/splash.png`, `assets/images/splash-screen.png`) shown strictly once on cold start.
+- **Reels-Style Vertical News Feed (`ReelsFeed.tsx`, `NewsCard.tsx`, `src/app/index.tsx`)**
+  - Enforces **1 swipe = 1 story** paging (`snapToInterval`, `disableIntervalMomentum`, dynamic container height measurement).
+  - **Tap-to-Toggle Immersive Mode**: Top header and bottom navigation bar (`Home`, `News+`, `Reload`) hide by default and smoothly animate in/out on single-tap, while timestamps, page counters, and the symmetric bottom social action bar remain fixed.
+  - **Centered WhatsApp CTA & Sharing**: Symmetrical bottom toolbar (`Like`, `Dislike`, enlarged centered `WhatsApp`, `Comments`, menu, and `Share`), plus `FullArticleModal.tsx` (`మరింత చదవండి` / `Read More`).
+- **Live Website Scraper & Resilient Caching (`src/services/scraperService.ts`, `articlesService.ts`, `useArticles.ts`)**
+  - Scrapes live news, reporter names/bureaus, and images directly from `https://ntodaynews.com/` with request deduplication, `15s` timeout + automatic retry, `https://ntodaynews.com/trending?page_latest=1` fallback, and chronological newest-first sorting.
+  - Falls back offline to cached live articles in `@react-native-async-storage/async-storage`, auto-retries on `AppState` foreground resume, and displays an explicit network retry screen (no fake mock articles in live feeds).
+- **Dynamic Live Categories & Pagination (`CategoryFilterModal.tsx`)**
+  - Dynamically extracts active categories from the live site navigation and performs strict per-category filtering and infinite chronological pagination (`/category/{id}?page={page}`).
+- **Live Telugu ↔ English Translation (`TranslationService`, `LanguageContext`)**
+  - Header `[తె A]` toggle switches the UI and translates headlines, article snippets, categories, and reporter desks on demand with persistent caching.
+- **User Onboarding & Account (`AccountView.tsx`, `AuthService`)**
+  - Reader profile management, bookmarks, read history, and 6-digit OTP sign-in verification flow.
 
 ---
 
 ## 🛠 Tech Stack
 
-* **Framework:** React Native 0.88 & Expo SDK 58
-* **Routing:** Expo Router v58 (File-based navigation in `src/app/`)
-* **Language:** TypeScript 5.8+ (Strict type-checking)
-* **Media & Video:** `expo-video` & `expo-linear-gradient`
-* **Icons:** `@expo/vector-icons` (`Ionicons` unified across all platforms)
-* **Tunneling:** `@expo/ngrok` (Seamless remote testing on physical devices)
+- **Framework:** React Native `0.88.0`, React `19.3.0`, Expo SDK `~58.0.20` (`reactCompiler: true`)
+- **Routing:** Expo Router (`~58.0.27`, typed routes enabled)
+- **Language:** TypeScript (`~6.0.3`, strict mode)
+- **Media & UI:** `expo-video`, `expo-image`, `expo-linear-gradient`, `expo-splash-screen`, `@expo/vector-icons` (`Ionicons`)
+- **Storage & Networking:** `@react-native-async-storage/async-storage`, optional `@supabase/supabase-js`
 
 ---
 
-## 🚀 Quick Start for Teammates
+## 🚀 Quick Start (Teammate Onboarding)
 
 ### 1. Prerequisites
-* [Node.js](https://nodejs.org/) (v18 or higher recommended)
-* [Git](https://git-scm.com/)
-* [Expo Go](https://expo.dev/go) app installed on your iOS or Android phone (optional, for device testing)
+- [Node.js](https://nodejs.org/) (v18 or higher)
+- [Git](https://git-scm.com/)
+- [Expo Go](https://expo.dev/go) on Android or iOS for instant device testing
 
-### 2. Clone the Repository
+### 2. Clone & Install
 ```bash
 git clone https://github.com/bhanu964/ntoday-news-mobile.git
 cd ntoday-news-mobile
-```
-
-### 3. Install Dependencies
-```bash
 npm install
 ```
 
-### 4. Run the Development Server
+### 3. Environment Variables (Optional)
+Out of the box, the app scrapes live news directly from `https://ntodaynews.com` with **zero API keys required**.
 
-#### Option A: Run with Live Cloud Tunnel (Recommended for Phone Testing)
-Enables opening the app on your physical phone over cellular data or remote Wi-Fi via Expo Go or web browser:
+If you want to connect a Supabase backend, copy `.env.example` to `.env`:
 ```bash
+cp .env.example .env
+```
+Populate `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`. (`.env` files are gitignored; for EAS builds, upload env vars with `eas env:create`.)
+
+### 4. Run in Development / Expo Go
+
+```bash
+# Recommended on same Wi-Fi LAN (clears Metro cache):
+npx expo start -c
+
+# Recommended if Mac and phone are on different networks:
 npm run tunnel
-```
 
-#### Option B: Run in Web Browser
-```bash
+# Other targets:
 npm run web
+npm run android
+npm run ios
 ```
-Opens the application at `http://localhost:8081`.
-
-#### Option C: Run on Emulators / Simulators
-```bash
-npm run android  # Android Emulator
-npm run ios      # iOS Simulator (macOS only)
-```
+Scan the printed QR code in **Expo Go** (Android) or the Camera app (iOS).
 
 ---
 
-## 📁 Project Architecture & Directory Structure
+## 📦 Building Android APK with EAS (`eas.json`)
+
+The repository uses Expo Application Services (**EAS Build**) and Continuous Native Generation (no manual `android/` or `ios/` folders are committed). [eas.json](./eas.json) configures `development`, `preview` (`distribution: "internal"`, `android.buildType: "apk"`), and `production` profiles.
+
+### Option A: Building under the Existing Shared Expo Project
+If your teammate account is added as a collaborator on `@bhanu_cheg/n-today-news`:
+```bash
+npx eas-cli@latest login
+npx eas-cli@latest build --platform android --profile preview
+```
+
+### Option B: Re-linking to Your Own Expo Account (Independent Build)
+If you are building under your own personal or team Expo account:
+1. Remove `"owner"` and `"extra.eas.projectId"` from `app.json` (or overwrite them with your own project ID):
+   ```bash
+   npx eas-cli@latest login
+   npx eas-cli@latest init --account <your-expo-account> --force
+   ```
+2. Trigger the APK build (accept generating a new Android Keystore when prompted):
+   ```bash
+   npx eas-cli@latest build --platform android --profile preview
+   ```
+
+Once complete, EAS provides a direct `.apk` download link and QR code for Android devices.
+
+---
+
+## 📁 Project Structure
 
 ```text
 ntoday-news-mobile/
 ├── assets/
-│   ├── images/
-│   │   ├── ntoday-official-logo.png  # Official NTODAY NEWS logo
-│   │   ├── ntoday-logo.png
-│   │   └── default.png
-│   └── news/                         # Local news image assets
+│   ├── icon.png                         # Primary 1024x1024 launcher icon (#020D23 badge)
+│   ├── splash.png                       # Portrait launch splash graphic
+│   ├── images/                          # Adaptive Android icon layers, logos & splash-screen.png
+│   └── news/                            # Local bundled fallback imagery
 ├── src/
-│   ├── app/                          # Expo Router file-based screens
-│   │   ├── _layout.tsx               # Root layout with DarkTheme & font preloading
-│   │   ├── index.tsx                 # Main screen (Home feed, TopHeader, BottomNavBar)
-│   │   └── explore.tsx               # Standalone explore screen
-│   ├── components/                   # Modular UI components
-│   │   ├── ReelsFeed.tsx             # Controlled 1-page vertical paging container
-│   │   ├── NewsCard.tsx              # Complete news card with actions & media
-│   │   ├── MediaViewer.tsx           # Photo/Video viewer with curved borders & fallback
-│   │   ├── TopHeader.tsx             # Navbar with logo, pills, and language toggle
-│   │   ├── BottomNavBar.tsx          # 5-tab persistent bottom bar
-│   │   ├── ExploreView.tsx           # Search, audio banner & trending stories
-│   │   ├── AccountView.tsx           # User profile & settings sheet
-│   │   ├── CommentsModal.tsx         # Interactive comments bottom sheet
-│   │   ├── FeedbackModal.tsx         # User feedback submission sheet
-│   │   ├── CategoryFilterModal.tsx   # 11-category filter dialog
-│   │   ├── VideosView.tsx            # Full-screen video section
-│   │   └── LiveView.tsx              # Live stream news preview
-│   ├── data/
-│   │   └── mockNews.ts               # 10 realistic Telugu news stories & top stories
-│   ├── types/
-│   │   └── news.ts                   # TypeScript interfaces (NewsArticle, Comment, etc.)
-│   └── constants/
-│       └── theme.ts                  # Brand colors, typography & spacing
-├── app.json                          # Expo configuration
-├── package.json                      # Project dependencies & scripts
-└── tsconfig.json                     # TypeScript compiler configuration
+│   ├── app/                             # Expo Router file-based routes
+│   │   ├── _layout.tsx                  # Root layout, theme, font preload & LaunchSplashOverlay
+│   │   ├── index.tsx                    # Main Reels feed, immersive chrome & error/retry UI
+│   │   ├── (tabs)/                      # Tab navigator route variants
+│   │   └── news/[id].tsx                # Deep-linked article detail route
+│   ├── components/                      # ReelsFeed, NewsCard, CategoryFilterModal, AccountView, etc.
+│   ├── config/appConfig.ts              # Channel constants, storage keys & Supabase config helper
+│   ├── constants/
+│   │   ├── theme.ts                     # Brand colors & typography
+│   │   └── translations.ts              # Telugu / English UI copy dictionary
+│   ├── context/LanguageContext.tsx      # Persistent Telugu / English state provider
+│   ├── data/mockNews.ts                 # Static sample data for playlists/tests
+│   ├── hooks/                           # useArticles, useBookmarks, useComments, useLikes
+│   ├── services/                        # scraperService, articlesService, translationService, authService, etc.
+│   └── types/                           # TypeScript definitions (news, database, user)
+├── admin/                               # Next.js editorial admin dashboard (optional)
+├── supabase/                            # SQL schema & migrations (optional)
+├── app.json                             # Expo app & native splash/icon configuration
+├── eas.json                             # EAS Build profiles (APK preview & production)
+├── .env.example                         # Template for optional Supabase environment variables
+└── package.json                         # Dependencies and npm scripts
 ```
 
 ---
 
-## 🧩 Key Architecture Details for Developers
+## 🧪 Verification & Pre-Commit Checks
 
-### Vertical Paging Engine (`src/components/ReelsFeed.tsx`)
-The feed relies on a controlled, single-item paging engine:
-```typescript
-// Enforces that one gesture advances at most one story
-const handleScrollEndDrag = (e) => {
-  const offsetY = e.nativeEvent.contentOffset.y;
-  const rawTarget = Math.round(offsetY / containerHeight);
-  let targetIndex = rawTarget;
-  if (targetIndex > startIndex + 1) targetIndex = startIndex + 1;
-  else if (targetIndex < startIndex - 1) targetIndex = startIndex - 1;
-  ...
-};
-```
-* **Deceleration Rate:** Set to `"normal"` for smooth gliding instead of aggressive snapping.
-* **Momentum Lock:** `disableIntervalMomentum={true}` guarantees the card always stops at the adjacent boundary.
-* **Layout Sync:** Height is measured dynamically via `onLayout` on `mainContent` to prevent offset drift across status bar and tab bar changes.
-
-### Unread Feed Stability (`src/app/index.tsx`)
-When a user switches to the **Unread** tab, `unreadSessionIds` snapshots the unread list:
-* Marking a story as read decrements the unread counter in real-time.
-* The story remains mounted in the feed until the user explicitly refreshes or changes tabs, eliminating the infinite auto-scrolling loop.
-
-### Typography & Fonts (`src/app/_layout.tsx`)
-* All iconography across the app is unified under **`Ionicons`** (`@expo/vector-icons`).
-* `Ionicons.font` is preloaded on startup using `expo-font`'s `useFonts` with error protection to prevent network timeout errors on mobile browsers.
-
----
-
-## 🧪 Verification & Quality Checks
-
-Run the following commands before committing new features:
-
+Run before committing or triggering an EAS build:
 ```bash
-# 1. Typecheck the entire codebase (must report 0 errors)
+# 1. Typecheck (must pass with 0 errors)
 npx tsc --noEmit
 
-# 2. Verify Expo doctor diagnostics
+# 2. Validate Expo app.json schema & dependencies
+npx expo config --type introspect > /dev/null
 npx expo-doctor
 ```
-
----
-
-## 🤝 Next Steps for the Team
-1. **API Integration:** Replace `MOCK_NEWS_ARTICLES` in `src/data/mockNews.ts` with API calls to the NTODAY NEWS backend (`https://ntodaynews.com/api/...`).
-2. **Push Notifications:** Configure Expo Notifications (`expo-notifications`) for breaking news alerts.
-3. **Authentication:** Connect user login in `src/components/AccountView.tsx` with your backend auth service.
-4. **Offline Caching:** Implement local caching using `@react-native-async-storage/async-storage` for offline reading.
 
 ---
 

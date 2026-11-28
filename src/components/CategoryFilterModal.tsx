@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArticlesService } from '@/services/articlesService';
+import { ScraperService } from '@/services/scraperService';
 import { NewsCategory } from '@/types/news';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -60,8 +61,15 @@ export function CategoryFilterModal({
   }, []);
 
   useEffect(() => {
-    loadLiveCategories(false);
-  }, [loadLiveCategories]);
+    // Load any cached categories immediately without racing the startup feed request
+    ScraperService.getCachedCategories()
+      .then((cached) => {
+        if (cached && cached.length > 1) {
+          setCategories(cached);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (visible && categories.length <= 1) {

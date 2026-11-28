@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { MOCK_NEWS_ARTICLES } from '@/data/mockNews';
 import { NewsArticle } from '@/types/news';
 import { ArticlesService } from '@/services/articlesService';
 import { useLanguage } from '@/context/LanguageContext';
@@ -21,7 +20,7 @@ interface LiveViewProps {
 }
 
 export function LiveView({ isTelugu: propIsTelugu }: LiveViewProps) {
-  const [updates, setUpdates] = useState<NewsArticle[]>(MOCK_NEWS_ARTICLES);
+  const [updates, setUpdates] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 

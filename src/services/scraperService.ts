@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NewsArticle, NewsCategory } from '@/types/news';
-import { MOCK_NEWS_ARTICLES } from '@/data/mockNews';
 import { TranslationService } from './translationService';
 
 const BASE_URL = 'https://ntodaynews.com';
@@ -8,6 +7,10 @@ const STORAGE_KEY_ARTICLES_PREFIX = '@ntoday_live_articles_v2_';
 const STORAGE_KEY_TIMESTAMP_PREFIX = '@ntoday_live_articles_ts_v2_';
 const STORAGE_KEY_CATEGORIES = '@ntoday_live_categories_v2';
 const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes cache validity
+const HOME_HTML_MEM_TTL_MS = 30 * 1000;
+
+let inFlightHomeHtmlPromise: Promise<string> | null = null;
+let cachedHomeHtml: { html: string; ts: number } | null = null;
 
 function cleanHtml(rawHtml?: string | null): string {
   if (!rawHtml) return '';
@@ -49,32 +52,88 @@ function generateSnippet(fullText: string, targetLength: number = 1200): string 
   return slice.trim();
 }
 
-async function fetchWithTimeout(url: string, timeoutMs: number = 6500): Promise<string> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+async function fetchOnce(url: string, timeoutMs: number): Promise<string> {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      try {
+        controller?.abort();
+      } catch {
+        // Ignore abort errors on older JS runtimes
+      }
+      reject(new Error(`Request timeout (${Math.round(timeoutMs / 1000)}s)`));
+    }, timeoutMs);
+  });
 
   try {
-    const res = await fetch(url, {
-      signal: controller.signal,
+    const fetchPromise = fetch(url, {
+      ...(controller ? { signal: controller.signal } : {}),
       headers: {
-        'User-Agent':
-          'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Cache-Control': 'no-cache',
       },
+    }).then(async (res) => {
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      return await res.text();
     });
-    clearTimeout(timer);
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-    return await res.text();
-  } catch (err: any) {
-    clearTimeout(timer);
-    throw err;
+
+    return await Promise.race([fetchPromise, timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
+}
+
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs: number = 15000,
+  retries: number = 1
+): Promise<string> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetchOnce(url, timeoutMs);
+    } catch (err) {
+      lastError = err;
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, 450));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Network request failed');
+}
+
+async function getHomepageHtml(forceRefresh = false): Promise<string> {
+  if (!forceRefresh && cachedHomeHtml && Date.now() - cachedHomeHtml.ts < HOME_HTML_MEM_TTL_MS) {
+    return cachedHomeHtml.html;
+  }
+  if (!forceRefresh && inFlightHomeHtmlPromise) {
+    return inFlightHomeHtmlPromise;
+  }
+
+  const req = fetchWithTimeout(`${BASE_URL}/`, 15000, 1)
+    .then((html) => {
+      cachedHomeHtml = { html, ts: Date.now() };
+      return html;
+    })
+    .finally(() => {
+      if (inFlightHomeHtmlPromise === req) {
+        inFlightHomeHtmlPromise = null;
+      }
+    });
+
+  inFlightHomeHtmlPromise = req;
+  return req;
 }
 
 function normalizeImageUrl(src?: string | null): string {
   if (!src) return 'https://ntodaynews.com/assets/images/default.png';
+  if (/^http:\/\/(?:www\.)?ntodaynews\.com/i.test(src)) {
+    return src.replace(/^http:\/\//i, 'https://');
+  }
   if (src.startsWith('http://') || src.startsWith('https://')) return src;
   if (src.startsWith('//')) return `https:${src}`;
   if (src.startsWith('/')) return `${BASE_URL}${src}`;
@@ -210,19 +269,11 @@ export const ScraperService = {
   },
 
   /**
-   * Fast extraction of all article cards available on the website homepage (and caches live categories)
+   * Fast extraction of all article cards available on the website homepage (with /trending fallback)
    */
-  async scrapeHomepageCards(): Promise<ScrapedCardSummary[]> {
-    const html = await fetchWithTimeout(`${BASE_URL}/`, 6500);
-    // Keep live categories synced whenever homepage is fetched
-    this.extractAndStoreCategoriesFromHtml(html).catch(() => {});
-
-    const cardRegex = /<a\s+href="(https:\/\/ntodaynews\.com\/[a-zA-Z0-9\-]+)"[^>]*>([\s\S]*?)<\/a>/g;
-    let match: RegExpExecArray | null;
-
+  async scrapeHomepageCards(forceRefresh = false): Promise<ScrapedCardSummary[]> {
     const cards: ScrapedCardSummary[] = [];
     const seenUrls = new Set<string>();
-
     const skipKeywords = [
       '/category/',
       '/live-',
@@ -235,32 +286,55 @@ export const ScraperService = {
       '/editors',
     ];
 
-    while ((match = cardRegex.exec(html)) !== null) {
-      const url = match[1];
-      const inner = match[2];
+    try {
+      const html = await getHomepageHtml(forceRefresh);
+      // Keep live categories synced whenever homepage is fetched
+      this.extractAndStoreCategoriesFromHtml(html).catch(() => {});
 
-      if (seenUrls.has(url)) continue;
-      if (skipKeywords.some((kw) => url.includes(kw))) continue;
+      const cardRegex =
+        /<a[^>]*href="(https?:\/\/(?:www\.)?ntodaynews\.com\/[a-zA-Z0-9\-]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+      let match: RegExpExecArray | null;
 
-      const imgMatch = inner.match(/src="([^"]+)"/);
-      const titleMatch =
-        inner.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/) || inner.match(/title="([^"]+)"/);
+      while ((match = cardRegex.exec(html)) !== null) {
+        const rawUrl = match[1];
+        const url = rawUrl.replace(/^http:\/\//i, 'https://').replace('://www.', '://');
+        const inner = match[2];
 
-      if (imgMatch && titleMatch) {
-        seenUrls.add(url);
-        const slug = url.replace(`${BASE_URL}/`, '').replace(/^https?:\/\/[^\/]+\//, '');
-        const dateMatch = inner.match(/fa-clock[^>]*><\/i>\s*([^<]+)/i);
-        const viewsMatch = inner.match(/fa-eye[^>]*><\/i>\s*([^<]+)/i);
+        if (seenUrls.has(url)) continue;
+        if (skipKeywords.some((kw) => url.includes(kw))) continue;
 
-        cards.push({
-          url,
-          slug,
-          title: cleanHtml(titleMatch[1]),
-          imageUrl: normalizeImageUrl(imgMatch[1]),
-          rawDate: dateMatch ? dateMatch[1].trim() : undefined,
-          rawViews: viewsMatch ? viewsMatch[1].trim() : undefined,
-        });
+        const imgMatch = inner.match(/src="([^"]+)"/i);
+        const titleMatch =
+          inner.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i) || inner.match(/title="([^"]+)"/i);
+
+        if (imgMatch && titleMatch) {
+          seenUrls.add(url);
+          const slug = url.replace(`${BASE_URL}/`, '').replace(/^https?:\/\/[^\/]+\//, '');
+          const dateMatch = inner.match(/fa-clock[^>]*><\/i>\s*([^<]+)/i);
+          const viewsMatch = inner.match(/fa-eye[^>]*><\/i>\s*([^<]+)/i);
+
+          cards.push({
+            url,
+            slug,
+            title: cleanHtml(titleMatch[1]),
+            imageUrl: normalizeImageUrl(imgMatch[1]),
+            rawDate: dateMatch ? dateMatch[1].trim() : undefined,
+            rawViews: viewsMatch ? viewsMatch[1].trim() : undefined,
+          });
+        }
       }
+    } catch (homeErr) {
+      // Fallback immediately to fast /trending?page_latest=1 (does not wait on YouTube RSS)
+      const trendingFallback = await this.scrapePaginatedCards(1);
+      if (trendingFallback.cards.length > 0) {
+        return trendingFallback.cards;
+      }
+      throw homeErr;
+    }
+
+    if (cards.length === 0) {
+      const trendingFallback = await this.scrapePaginatedCards(1);
+      return trendingFallback.cards;
     }
 
     return cards;
@@ -274,7 +348,7 @@ export const ScraperService = {
     page: number = 1
   ): Promise<{ cards: ScrapedCardSummary[]; hasMore: boolean; categoryLabel?: string }> {
     const pageUrl = `${BASE_URL}/category/${webCatId}?page=${page}`;
-    const html = await fetchWithTimeout(pageUrl, 6500);
+    const html = await fetchWithTimeout(pageUrl, 15000, 1);
 
     // Keep live categories synced if not yet loaded
     if (liveCategoriesCache.length <= 1) {
@@ -293,15 +367,18 @@ export const ScraperService = {
 
     while ((m = articleRegex.exec(html)) !== null) {
       const block = m[1];
-      const urlMatch = block.match(/href="(https:\/\/ntodaynews\.com\/[a-zA-Z0-9\-]+)"/i);
+      const urlMatch = block.match(
+        /href="(https?:\/\/(?:www\.)?ntodaynews\.com\/[a-zA-Z0-9\-]+)"/i
+      );
       const imgMatch = block.match(/<img[^>]*src="([^"]+)"/i);
       const titleMatch = block.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i);
       const badgeMatch = block.match(/class="[^"]*badge[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
       const dateMatch = block.match(/fa-calendar-alt[^>]*><\/i>\s*([^<]+)/i) || block.match(/fa-clock[^>]*><\/i>\s*([^<]+)/i);
       const viewsMatch = block.match(/fa-eye[^>]*><\/i>\s*([^<]+)/i);
 
-      if (urlMatch && titleMatch && !seen.has(urlMatch[1])) {
-        const url = urlMatch[1];
+      if (urlMatch && titleMatch) {
+        const url = urlMatch[1].replace(/^http:\/\//i, 'https://').replace('://www.', '://');
+        if (seen.has(url)) continue;
         seen.add(url);
         cards.push({
           url,
@@ -331,7 +408,7 @@ export const ScraperService = {
   async scrapePaginatedCards(page: number): Promise<{ cards: ScrapedCardSummary[]; hasMore: boolean }> {
     try {
       const pageUrl = `${BASE_URL}/trending?page_latest=${page}`;
-      const html = await fetchWithTimeout(pageUrl, 6500);
+      const html = await fetchWithTimeout(pageUrl, 15000, 1);
       const cards: ScrapedCardSummary[] = [];
       const seen = new Set<string>();
 
@@ -343,8 +420,12 @@ export const ScraperService = {
 
       while ((m = blockRegex.exec(html)) !== null) {
         const block = m[1] || m[2];
-        const urlMatch = block.match(/href="(https:\/\/ntodaynews\.com\/[a-zA-Z0-9\-]+)"/i);
-        if (!urlMatch || skipKeywords.some((kw) => urlMatch[1].includes(kw))) continue;
+        const urlMatch = block.match(
+          /href="(https?:\/\/(?:www\.)?ntodaynews\.com\/[a-zA-Z0-9\-]+)"/i
+        );
+        if (!urlMatch) continue;
+        const normalizedUrl = urlMatch[1].replace(/^http:\/\//i, 'https://').replace('://www.', '://');
+        if (skipKeywords.some((kw) => normalizedUrl.includes(kw))) continue;
 
         const imgMatch = block.match(/src="([^"]+)"/i);
         const titleMatch = block.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i);
@@ -352,11 +433,11 @@ export const ScraperService = {
           block.match(/<small[^>]*>[\s\S]*?<\/i>\s*([^<]+)<\/small>/i) ||
           block.match(/fa-clock[^>]*><\/i>\s*([^<]+)/i);
 
-        if (titleMatch && !seen.has(urlMatch[1])) {
-          seen.add(urlMatch[1]);
+        if (titleMatch && !seen.has(normalizedUrl)) {
+          seen.add(normalizedUrl);
           cards.push({
-            url: urlMatch[1],
-            slug: urlMatch[1].replace(`${BASE_URL}/`, ''),
+            url: normalizedUrl,
+            slug: normalizedUrl.replace(`${BASE_URL}/`, ''),
             imageUrl: normalizeImageUrl(imgMatch ? imgMatch[1] : ''),
             title: cleanHtml(titleMatch[1]),
             rawDate: dateMatch ? cleanHtml(dateMatch[1]) : undefined,
@@ -381,7 +462,7 @@ export const ScraperService = {
     fallbackImg: string
   ): Promise<ScrapedArticleDetail> {
     try {
-      const html = await fetchWithTimeout(url, 5000);
+      const html = await fetchWithTimeout(url, 9000, 0);
 
       let jsonLd: any = null;
       const jsonMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/i);
@@ -422,8 +503,9 @@ export const ScraperService = {
       const avatarMatch = html.match(/class="[^"]*reporter-avatar[^"]*"[\s\S]*?src="([^"]+)"/i);
       const reporterAvatar = avatarMatch ? normalizeImageUrl(avatarMatch[1]) : undefined;
 
+      const jsonLdImage = Array.isArray(jsonLd?.image) ? jsonLd.image[0] : jsonLd?.image;
       const imgMatch = html.match(/id="main-news-image"[^>]*src="([^"]+)"/i);
-      const imageUrl = normalizeImageUrl(imgMatch ? imgMatch[1] : jsonLd?.image?.[0] || fallbackImg);
+      const imageUrl = normalizeImageUrl(imgMatch ? imgMatch[1] : jsonLdImage || fallbackImg);
 
       const contentMatch = html.match(/<div class="news-content">([\s\S]*?)<\/div>\s*<\/div>/i);
       let content = contentMatch ? cleanHtml(contentMatch[1]) : '';
@@ -467,7 +549,7 @@ export const ScraperService = {
     forceRefresh?: boolean;
     categoryId?: string;
     limit?: number;
-  } = {}): Promise<{ articles: NewsArticle[]; hasMore: boolean; total: number }> {
+  } = {}): Promise<{ articles: NewsArticle[]; hasMore: boolean; total: number; error?: string }> {
     const { page = 1, forceRefresh = false, categoryId, limit = 12 } = options;
 
     const isCategoryMode = Boolean(categoryId && categoryId !== 'all');
@@ -521,7 +603,7 @@ export const ScraperService = {
         }
       } else {
         if (page === 1) {
-          cards = await this.scrapeHomepageCards();
+          cards = await this.scrapeHomepageCards(forceRefresh);
           hasMorePages = true;
         } else {
           const paginated = await this.scrapePaginatedCards(page);
@@ -596,8 +678,10 @@ export const ScraperService = {
 
       // 5. Sort chronologically newest-first using parsed publishedAt timestamps
       articles.sort((a, b) => {
-        const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-        const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+        const taRaw = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+        const tbRaw = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+        const ta = Number.isFinite(taRaw) ? taRaw : 0;
+        const tb = Number.isFinite(tbRaw) ? tbRaw : 0;
         return tb - ta;
       });
 
@@ -622,8 +706,9 @@ export const ScraperService = {
         hasMore: hasMorePages,
         total: indexed.length,
       };
-    } catch (err) {
-      console.warn('[ScraperService] Live scrape failed, checking strict cache:', err);
+    } catch (err: any) {
+      const errMessage = err?.message || 'Unable to connect to ntodaynews.com';
+      console.warn('[ScraperService] Live scrape failed, checking offline cache:', errMessage);
 
       if (page === 1) {
         try {
@@ -643,21 +728,11 @@ export const ScraperService = {
         }
       }
 
-      if (isCategoryMode) {
-        // Strict filtering: never pollute selected category with unrelated mock articles
-        const catFilterName = resolvedCat?.name || categoryId;
-        const strictMock = this.filterArticles(MOCK_NEWS_ARTICLES, catFilterName, limit);
-        return {
-          articles: strictMock,
-          hasMore: false,
-          total: strictMock.length,
-        };
-      }
-
       return {
-        articles: this.filterArticles(MOCK_NEWS_ARTICLES, undefined, limit),
+        articles: [],
         hasMore: false,
-        total: MOCK_NEWS_ARTICLES.length,
+        total: 0,
+        error: errMessage,
       };
     }
   },
@@ -748,7 +823,7 @@ export const ScraperService = {
     }
 
     try {
-      const html = await fetchWithTimeout(`${BASE_URL}/`, 6000);
+      const html = await getHomepageHtml(forceRefresh);
       const extracted = await this.extractAndStoreCategoriesFromHtml(html);
       if (extracted.length > 1) {
         return extracted;
